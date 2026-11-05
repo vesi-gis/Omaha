@@ -1,0 +1,2944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Omaha 3D Data Viewer</title>
+  
+  <!-- CesiumJS Library -->
+  <script src="https://ajax.googleapis.com/ajax/libs/cesiumjs/1.105/Build/Cesium/Cesium.js"></script>
+  <script src="./config.js"></script>
+  <link href="https://ajax.googleapis.com/ajax/libs/cesiumjs/1.105/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    html, body, #cesiumContainer {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background-color: #000;
+    }
+
+    #sidePanel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(25, 25, 25, 0.9);
+      padding: 15px;
+      border-radius: 8px;
+      z-index: 10;
+      color: white;
+      font-family: 'Karla', sans-serif;
+      width: 220px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    }
+
+    .layer-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 6px;
+      color: white;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.2s;
+    }
+
+    .layer-toggle:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    .layer-toggle input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .section-title {
+      padding: 10px 0;
+      font-size: 11px;
+      color: #4fc3f7;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .grade-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 6px;
+      color: white;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.2s;
+      font-size: 13px;
+      margin-left: 16px;
+    }
+
+    .grade-toggle:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    /* Legend for gradient layer symbology */
+    .legend {
+      margin-left: 24px;
+      margin-top: 4px;
+      margin-bottom: 8px;
+      width: calc(100% - 24px);
+      color: #ddd;
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .legend-gradient {
+      height: 12px;
+      border-radius: 4px;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+    }
+
+    .legend-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 4px;
+      color: #dcdcdc;
+      font-size: 11px;
+    }
+
+    .grade-toggle input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+    }
+
+    .color-swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 2px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      font-size: 11px;
+      color: #4fc3f7;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      user-select: none;
+      transition: opacity 0.2s;
+    }
+
+    .group-header:hover {
+      opacity: 0.8;
+    }
+
+    .toggle-arrow {
+      display: inline-block;
+      transition: transform 0.2s ease;
+      font-size: 10px;
+    }
+
+    .group-header.collapsed .toggle-arrow {
+      transform: rotate(-90deg);
+    }
+
+    .group-content {
+      max-height: 1000px;
+      overflow: hidden;
+      transition: max-height 0.3s ease, opacity 0.3s ease;
+      opacity: 1;
+    }
+
+    .group-content.collapsed {
+      max-height: 0;
+      opacity: 0;
+    }
+
+    #featurePopup {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100vh;
+      width: 400px;
+      background: rgba(25, 25, 25, 0.98);
+      padding: 20px;
+      z-index: 20;
+      color: white;
+      font-family: 'Karla', sans-serif;
+      overflow-y: auto;
+      box-shadow: -4px 0 15px rgba(0, 0, 0, 0.7);
+      display: none;
+      border-left: 1px solid rgba(255, 255, 255, 0.2);
+      transform: translateX(100%);
+      transition: transform 0.3s ease-in-out;
+    }
+
+    #featurePopup.visible {
+      display: block;
+      transform: translateX(0);
+    }
+
+    #featurePopup .popup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      padding-bottom: 10px;
+      background-color: rgba(60, 60, 60, 0.5);
+      padding: 10px;
+      margin: -20px -20px 15px -20px;
+      padding-bottom: 10px;
+    }
+
+    #featurePopup .popup-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #4fc3f7;
+    }
+
+    #featurePopup .close-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.2s;
+    }
+
+    #featurePopup .close-btn:hover {
+      color: #4fc3f7;
+    }
+
+    #featurePopup .popup-content {
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    #featurePopup .popup-content p {
+      margin: 8px 0;
+    }
+
+    #featurePopup .popup-content strong {
+      color: #4fc3f7;
+    }
+
+    #localStoryHoverCard {
+      position: fixed;
+      display: none;
+      z-index: 30;
+      width: 300px;
+      color: #292929;
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      overflow: hidden;
+      pointer-events: auto;
+      font-family: 'Karla', sans-serif;
+    }
+
+    #localStoryHoverCard.visible {
+      display: block;
+    }
+
+    #localStoryHoverCard::after {
+      content: '';
+      position: absolute;
+      left: var(--callout-arrow-x, 50%);
+      bottom: -9px;
+      width: 0;
+      height: 0;
+      border-left: 9px solid transparent;
+      border-right: 9px solid transparent;
+      border-top: 9px solid #ffffff;
+      transform: translateX(-50%);
+      z-index: -1;
+    }
+
+    #localStoryHoverCard.callout-right::after {
+      left: -9px;
+      top: 50%;
+      bottom: auto;
+      border-left: 0;
+      border-top: 9px solid transparent;
+      border-bottom: 9px solid transparent;
+      border-right: 9px solid #ffffff;
+      transform: translateY(-50%);
+    }
+
+    #localStoryHoverCard.callout-left::after {
+      left: auto;
+      right: -9px;
+      top: 50%;
+      bottom: auto;
+      border-right: 0;
+      border-top: 9px solid transparent;
+      border-bottom: 9px solid transparent;
+      border-left: 9px solid #ffffff;
+      transform: translateY(-50%);
+    }
+
+    .local-story-card-close {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      z-index: 2;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: #333333;
+      font-size: 20px;
+      line-height: 28px;
+      cursor: pointer;
+    }
+
+    .local-story-card-body {
+      padding: 14px 16px 12px;
+      max-height: min(360px, calc(100vh - 24px));
+      overflow-y: auto;
+    }
+
+    .local-story-card-title {
+      margin: 0 26px 8px 0;
+      color: #292929;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .local-story-card-summary {
+      margin: 0 0 10px;
+      color: #555555;
+      font-size: 12px;
+      line-height: 1.45;
+      max-height: 72px;
+      overflow-y: auto;
+    }
+
+    .local-story-card-meta {
+      margin: 0 0 12px;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .local-story-card-meta p {
+      margin: 5px 0;
+    }
+
+    .local-story-bullets {
+      margin: 4px 0 0;
+      padding-left: 18px;
+    }
+
+    .local-story-bullets li {
+      margin: 2px 0;
+      line-height: 1.35;
+    }
+
+    .local-story-learn-more {
+      width: 100%;
+      border: 0;
+      border-radius: 4px;
+      padding: 12px 16px;
+      background: #c93232;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .local-story-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .local-story-actions .local-story-learn-more,
+    .local-story-actions .local-story-street-view {
+      min-height: 42px;
+      padding: 10px 8px;
+      text-align: center;
+      text-decoration: none;
+    }
+
+    .local-story-street-view {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      border-radius: 4px;
+      background: #d96f32;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+      box-sizing: border-box;
+    }
+
+    .local-story-street-view.is-loading,
+    .local-story-street-view-link.is-loading {
+      opacity: 0.65;
+      pointer-events: none;
+    }
+
+    #localStoryMindMap {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(18, 24, 32, 0.72);
+      backdrop-filter: blur(2px);
+      font-family: 'Karla', sans-serif;
+    }
+
+    #localStoryMindMap.visible {
+      display: flex;
+    }
+
+    .local-story-mindmap-shell {
+      position: relative;
+      width: min(1100px, calc(100vw - 48px));
+      height: min(720px, calc(100vh - 48px));
+      border-radius: 14px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.97);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.48);
+    }
+
+    .local-story-mindmap-header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 3;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      padding: 0 56px 0 18px;
+      border-bottom: 1px solid #e5e5e5;
+      color: #292929;
+      font-weight: 700;
+    }
+
+    .local-story-mindmap-close {
+      position: absolute;
+      top: 12px;
+      right: 14px;
+      z-index: 4;
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 50%;
+      background: #f1f1f1;
+      color: #333333;
+      font-size: 22px;
+      line-height: 34px;
+      cursor: pointer;
+    }
+
+    #localStoryMindMapCanvas {
+      position: absolute;
+      inset: 58px 0 0;
+      overflow: auto;
+    }
+
+    #localStoryMindMapLines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    #localStoryMindMapNodes {
+      position: absolute;
+      inset: 0;
+    }
+
+    .local-story-mindmap-center {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 74px;
+      height: 74px;
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: #c93232;
+      border: 6px solid #ffffff;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+      color: #ffffff;
+      font-size: 20px;
+      font-weight: 800;
+      z-index: 2;
+    }
+
+    .local-story-mindmap-node {
+      position: absolute;
+      width: 210px;
+      min-height: 92px;
+      padding: 10px 12px;
+      border: 1px solid #dddddd;
+      border-left: 4px solid #d96f32;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+      color: #292929;
+      text-align: left;
+      cursor: pointer;
+      font-family: 'Karla', sans-serif;
+      z-index: 2;
+    }
+
+    .local-story-mindmap-node:hover,
+    .local-story-mindmap-node:focus-visible {
+      border-color: #d96f32;
+      box-shadow: 0 6px 18px rgba(217, 111, 50, 0.28);
+      outline: none;
+    }
+
+    .local-story-mindmap-node strong {
+      display: -webkit-box;
+      margin-bottom: 5px;
+      overflow: hidden;
+      color: #292929;
+      font-size: 13px;
+      line-height: 1.25;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .local-story-mindmap-node span {
+      display: block;
+      color: #666666;
+      font-size: 11px;
+      line-height: 1.35;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .local-story-timeline-node {
+      position: absolute;
+      width: 230px;
+      min-height: 118px;
+      padding: 12px 14px;
+      border: 1px solid #d6d6d6;
+      border-top: 4px solid #d96f32;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 5px 16px rgba(0, 0, 0, 0.16);
+      color: #292929;
+      text-align: left;
+      cursor: pointer;
+      font-family: 'Karla', sans-serif;
+      z-index: 3;
+    }
+
+    .local-story-timeline-node:hover,
+    .local-story-timeline-node:focus-visible {
+      border-top-color: #c93232;
+      box-shadow: 0 7px 20px rgba(217, 111, 50, 0.30);
+      outline: none;
+    }
+
+    .local-story-timeline-node strong {
+      display: -webkit-box;
+      margin-bottom: 7px;
+      overflow: hidden;
+      color: #292929;
+      font-size: 13px;
+      line-height: 1.3;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+    }
+
+    .local-story-timeline-node .timeline-period {
+      display: block;
+      padding-top: 7px;
+      border-top: 1px solid #eeeeee;
+      color: #b64f2a;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    /* Reset view button (top-right) */
+    #resetViewBtn {
+      position: fixed;
+      top: 50px;
+      right: 10px;
+      z-index: 12;
+      background: rgba(40,40,40,0.9);
+      color: #ffffff;
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: 'Karla', sans-serif;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+
+    #resetViewBtn:hover {
+      background: rgba(64,64,64,0.95);
+      color: #4fc3f7;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="cesiumContainer"></div>
+
+  <div id="localStoryMindMap" role="dialog" aria-modal="true" aria-label="Stories at this location">
+    <div class="local-story-mindmap-shell">
+      <div class="local-story-mindmap-header" id="localStoryMindMapHeader">Stories at this location</div>
+      <button class="local-story-mindmap-close" id="localStoryMindMapClose" aria-label="Close">×</button>
+      <div id="localStoryMindMapCanvas">
+        <svg id="localStoryMindMapLines" aria-hidden="true"></svg>
+        <div class="local-story-mindmap-center" id="localStoryMindMapCenter">0</div>
+        <div id="localStoryMindMapNodes"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="featurePopup">
+    <div class="popup-header">
+      <div class="popup-title" id="popupTitle">Feature Details</div>
+      <button class="close-btn" id="closePopupBtn">×</button>
+    </div>
+    <div class="popup-content" id="popupContent"></div>
+  </div>
+
+  <div id="localStoryHoverCard" role="dialog" aria-label="Local story details">
+    <button class="local-story-card-close" id="localStoryCardClose" aria-label="Close">×</button>
+    <div class="local-story-card-body">
+      <h3 class="local-story-card-title" id="localStoryCardTitle"></h3>
+      <p class="local-story-card-summary" id="localStoryCardSummary"></p>
+      <div class="local-story-card-meta">
+        <p><strong>Time period:</strong> <span id="localStoryCardTime"></span></p>
+        <p><strong>Phenomena:</strong></p>
+        <div id="localStoryCardPhenomena"></div>
+        <p><strong>Georeferencing:</strong> <span id="localStoryCardGeo"></span></p>
+      </div>
+      <div class="local-story-actions">
+        <button class="local-story-learn-more" id="localStoryLearnMore">Learn More</button>
+        <a class="local-story-street-view" id="localStoryStreetView" href="#" target="_blank" rel="noopener noreferrer">Street View</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="sidePanel">
+    <div class="section-title">📍 Layers</div>
+    
+    <div class="group-header" id="boundariesToggle">
+      <span>🗺️ Boundaries</span>
+      <span class="toggle-arrow">▼</span>
+    </div>
+    <div class="group-content" id="boundariesContent">
+      <label class="layer-toggle">
+        <input type="checkbox" id="toggleLocalStories">
+        📖 Local Stories
+      </label>
+      <label class="layer-toggle">
+        <input type="checkbox" id="toggleNeighborhoods">
+        🏘️ Neighborhoods
+      </label>
+      <label class="layer-toggle">
+        <input type="checkbox" id="toggleRedlining">
+        🗺️ HOLC Redlining
+      </label>
+      <div id="gradesContainer" style="margin-left: 8px;">
+        <label class="grade-toggle">
+          <div class="color-swatch" style="background-color: #76a865;"></div>
+          <input type="checkbox" id="toggleGradeA" checked data-grade="A">
+          <span>A: Best</span>
+        </label>
+        <label class="grade-toggle">
+          <div class="color-swatch" style="background-color: #7cb5bd;"></div>
+          <input type="checkbox" id="toggleGradeB" checked data-grade="B">
+          <span>B: Still Desirable</span>
+        </label>
+        <label class="grade-toggle">
+          <div class="color-swatch" style="background-color: #ffff00;"></div>
+          <input type="checkbox" id="toggleGradeC" checked data-grade="C">
+          <span>C: Declining</span>
+        </label>
+        <label class="grade-toggle">
+          <div class="color-swatch" style="background-color: #d9838d;"></div>
+          <input type="checkbox" id="toggleGradeD" checked data-grade="D">
+          <span>D: Hazardous</span>
+        </label>
+        <label class="grade-toggle">
+          <div class="color-swatch" style="background-color: #808080;"></div>
+          <input type="checkbox" id="toggleGradeOther" data-grade="Other">
+          <span>Other: Commercial/Industrial</span>
+        </label>
+      </div>
+    </div>
+    
+    <div class="group-header" id="administrationToggle">
+      <span>🗺️ Administration Boundaries</span>
+      <span class="toggle-arrow">▼</span>
+    </div>
+    <div class="group-content" id="administrationContent">
+      <label class="layer-toggle">
+        <input type="checkbox" id="toggleIowaCounties">
+        Iowa Counties
+      </label>
+      <label class="layer-toggle">
+        <input type="checkbox" id="toggleNebraskaCounties">
+        Nebraska Counties
+      </label>
+    </div>
+
+    <label class="layer-toggle">
+      <input type="checkbox" id="toggleGoogle3D" checked>
+      🏢 Google 3D Tiles
+    </label>
+  </div>
+
+  <button id="resetViewBtn" title="Reset camera view">⟲ Reset View</button>
+
+  <script>
+    /**
+     * Omaha 3D Data View
+     * =====================
+     * A CesiumJS application displaying Google Photorealistic 3D tiles
+     * over Omaha, NE with an interactive layer toggle UI.
+     *
+     * Dependencies:
+     * - CesiumJS 1.105+
+     * - Cesium Ion token
+     * - Google 3D Tiles API token
+     */
+
+    // Cesium Ion Access Token for terrain and resources
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YzEzOTJiOS04ZDk5LTQ2YTgtYTVlYS1iOWFkMjA5NWYzMTUiLCJpZCI6Mzg4NDA0LCJpYXQiOjE3NzA1NTA4MjF9.uWOUlsxIdFQiF2UXiYsdePVjY3pwZu37Pf8yR3p2QAg';
+
+    let viewer;
+    let tileset;
+    let tractDataSource = null;
+    let tractOutlineDataSource = null;
+    let neighborhoodsDataSource = null;
+    let iowaCountiesDataSource = null;
+    let nebraskaCountiesDataSource = null;
+    let parcelsDataSource = null;
+    let selectedNeighborhood = null;
+    let redliningDataSource = null;
+    let localStoriesDataSource = null;
+    let hoveredLocalStoryEntity = null;
+    let pinnedLocalStoryEntity = null;
+    let selectedFeature = null;
+    // Hotspots layer removed; hotspotsDataSource omitted
+    let employmentTypeDataSource = null;
+    let unemploymentRateDataSource = null;
+    let rotationActive = false;
+    let rotationListener = null;
+    let rotationTimeout = null;
+
+    const DEFAULT_CAMERA = {
+      longitude: -95.97,
+      latitude: 41.09,
+      height: 7000,
+      headingDegrees: 0,
+      pitchDegrees: -20,
+      rollDegrees: 0
+    };
+
+    function getDefaultCameraView() {
+      return {
+        destination: Cesium.Cartesian3.fromDegrees(
+          DEFAULT_CAMERA.longitude,
+          DEFAULT_CAMERA.latitude,
+          DEFAULT_CAMERA.height
+        ),
+        orientation: {
+          heading: Cesium.Math.toRadians(DEFAULT_CAMERA.headingDegrees),
+          pitch: Cesium.Math.toRadians(DEFAULT_CAMERA.pitchDegrees),
+          roll: Cesium.Math.toRadians(DEFAULT_CAMERA.rollDegrees)
+        }
+      };
+    }
+
+    const gradeColors = {
+      'A': Cesium.Color.fromCssColorString('#76a865').withAlpha(0.4),
+      'B': Cesium.Color.fromCssColorString('#7cb5bd').withAlpha(0.4),
+      'C': Cesium.Color.fromCssColorString('#ffff00').withAlpha(0.4),
+      'D': Cesium.Color.fromCssColorString('#d9838d').withAlpha(0.4),
+      'Other': Cesium.Color.fromCssColorString('#808080').withAlpha(0.4)
+    };
+
+    // Parcel type colors (used for parcel symbology)
+    const parcelTypeColors = {
+      singleFamily: '#73a4cd',                // single-family homes
+      multiUnitSingleFamily: '#1754bf',       // multi-unit single family
+      multiUnitBuildings: '#47a6ea',          // multi-unit buildings
+      commercial: '#2d2ed8',                  // commercial
+      landSocialCultural: '#c7ad58',          // land | social | cultural
+      other: '#808080'
+    };
+
+    const entitiesByGrade = { 'A': [], 'B': [], 'C': [], 'D': [], 'Other': [] };
+    const visibleGrades = { 'A': true, 'B': true, 'C': true, 'D': true, 'Other': false };
+    // Parcels grouped by our classification keys for interactive toggles
+    const parcelsByType = {
+      singleFamily: [],
+      multiUnitSingleFamily: [],
+      multiUnitBuildings: [],
+      commercial: [],
+      landSocialCultural: [],
+      other: []
+    };
+    const visibleParcelTypes = {
+      singleFamily: true,
+      multiUnitSingleFamily: true,
+      multiUnitBuildings: true,
+      commercial: true,
+      landSocialCultural: true,
+      other: true
+    };
+
+    /**
+     * Initialize the Cesium viewer and load Google 3D tiles
+     */
+    Cesium.createWorldTerrainAsync()
+      .then(terrainProvider => {
+        // Create Cesium viewer with minimal UI
+        viewer = new Cesium.Viewer('cesiumContainer', {
+          baseLayerPicker: false,
+          timeline: false,
+          animation: false,
+          infoBox: false,
+          selectionIndicator: false,
+          terrainProvider: terrainProvider
+        });
+
+        // Set globe background to black
+        viewer.scene.globe.baseColor = Cesium.Color.BLACK;
+
+        // Increase request parallelization for Google tiles (if supported)
+        try {
+          if (Cesium.RequestScheduler && Cesium.RequestScheduler.requestsByServer) {
+            Cesium.RequestScheduler.requestsByServer["tile.googleapis.com:443"] = 18;
+          }
+        } catch (e) {
+          console.warn('Could not set RequestScheduler.requestsByServer:', e);
+        }
+        // Load Google Photorealistic 3D Tiles
+        if (!window.GOOGLE_MAPS_API_KEY) {
+          throw new Error('Google Maps API key is not configured.');
+        }
+        return Cesium.Cesium3DTileset.fromUrl(
+          `https://tile.googleapis.com/v1/3dtiles/root.json?key=${encodeURIComponent(window.GOOGLE_MAPS_API_KEY)}`
+        ).catch(error => {
+          console.warn('Google 3D Tiles could not be loaded. Local map layers will remain available:', error);
+          return null;
+        });
+      })
+      .then(loadedTileset => {
+        // Add tileset to the scene
+        if (loadedTileset) {
+          tileset = viewer.scene.primitives.add(loadedTileset);
+          loadedTileset.show = true;
+        } else {
+          const googleToggle = document.getElementById('toggleGoogle3D');
+          if (googleToggle) googleToggle.disabled = true;
+        }
+
+        // Fly camera to Omaha, NE with specified view
+        viewer.camera.flyTo({
+          ...getDefaultCameraView(),
+          duration: 2
+        });
+
+        // Setup click handler for neighborhood selection
+        viewer.screenSpaceEventHandler.setInputAction(function handle_LEFT_CLICK(click) {
+          // If auto-rotating, stop on the next click
+          if (rotationActive) {
+            stopAutoRotate();
+          }
+          const pickedObject = viewer.scene.pick(click.position);
+          
+          if (!Cesium.defined(pickedObject)) {
+            clearRedliningSelection();
+            clearNeighborhoodSelection();
+            closeFeaturePopup();
+            hideLocalStoryCard();
+            return;
+          }
+
+          if (!Cesium.defined(pickedObject.id)) {
+            clearRedliningSelection();
+            clearNeighborhoodSelection();
+            closeFeaturePopup();
+            hideLocalStoryCard();
+            return;
+          }
+
+          const picked = pickedObject.id;
+
+
+          // Handle redlining selection
+          if (Cesium.defined(picked.gradeValue)) {
+            if (selectedFeature && selectedFeature !== picked) {
+              clearRedliningSelection();
+            }
+            if (selectedNeighborhood) {
+              clearNeighborhoodSelection();
+            }
+            isolateFeature(picked);
+            openFeaturePopup(picked, 'redlining');
+            try {
+              flyToEntity(picked, { duration: 1.2, pitch: Cesium.Math.toRadians(-30), heading: Cesium.Math.toRadians(0), minRange: 400 });
+            } catch (e) {
+              console.warn('FlyTo failed for redlining feature:', e);
+            }
+            return;
+          }
+
+          // Handle neighborhood selection
+          if (picked.isNeighborhood) {
+            let neighborhoodFeature = picked;
+            if (picked.polyline && neighborhoodsDataSource && picked.neighborhoodName) {
+              neighborhoodFeature = neighborhoodsDataSource.entities.values.find(entity =>
+                entity.neighborhoodName === picked.neighborhoodName
+              ) || picked;
+            }
+            if (selectedNeighborhood && selectedNeighborhood !== picked) {
+              clearNeighborhoodSelection();
+            }
+            if (selectedFeature) {
+              clearRedliningSelection();
+            }
+            isolateNeighborhood(neighborhoodFeature);
+            openFeaturePopup(neighborhoodFeature, 'neighborhood');
+            try {
+              flyToEntity(neighborhoodFeature, { duration: 1.2, pitch: Cesium.Math.toRadians(-35), heading: Cesium.Math.toRadians(0), minRange: 500 });
+            } catch (e) {
+              console.warn('FlyTo failed for neighborhood feature:', e);
+            }
+            return;
+          }
+
+          // Handle Local Stories points
+          if (picked.isLocalStory) {
+            const latitude = picked.localStoryLatitude;
+            const longitude = picked.localStoryLongitude;
+            const position = Cesium.Cartesian3.fromDegrees(longitude, latitude, 25);
+            const cameraLatitude = latitude - (200 / 111320);
+            hideLocalStoryCard();
+            hideLocalStoryMindMap();
+            viewer.camera.flyTo({
+              duration: 1.4,
+              destination: Cesium.Cartesian3.fromDegrees(longitude, cameraLatitude, 500),
+              orientation: {
+                heading: viewer.camera.heading,
+                pitch: Cesium.Math.toRadians(-35),
+                roll: 0
+              },
+              complete: function() {
+                if (picked.isLocalStory && localStoriesDataSource && localStoriesDataSource.show) {
+                  const screenPosition = viewer.scene.cartesianToCanvasCoordinates(position);
+                  const storiesAtPoint = getLocalStoriesAtCoordinates(latitude, longitude);
+                  if (storiesAtPoint.length > 1) {
+                    showLocalStoryMindMap(storiesAtPoint, picked);
+                  } else {
+                    showLocalStoryCard(picked, screenPosition, true);
+                  }
+                }
+              }
+            });
+            return;
+          }
+
+          // Handle hotspots selection
+          if (picked.isHotspot) {
+            openFeaturePopup(picked, 'hotspot');
+            try {
+              flyToEntity(picked, { duration: 1.2, pitch: Cesium.Math.toRadians(-25), heading: Cesium.Math.toRadians(0), minRange: 200 });
+              // Start auto-rotate shortly after the zoom completes
+              if (rotationTimeout) {
+                clearTimeout(rotationTimeout);
+              }
+              rotationTimeout = setTimeout(() => {
+                startAutoRotate(picked, { speed: 0.25 });
+              }, 1400);
+            } catch (e) {
+              console.warn('FlyTo failed for hotspot feature:', e);
+            }
+            return;
+          }
+
+          // Handle parcel selection (open popup only; no auto-zoom)
+          if (picked.isParcel) {
+            openFeaturePopup(picked, 'parcel');
+            return;
+          }
+
+          // Handle census tract selection
+          if (picked.isCensusTract) {
+            openFeaturePopup(picked, 'censusTract');
+            try {
+              flyToEntity(picked, { duration: 1.2, pitch: Cesium.Math.toRadians(-30), heading: Cesium.Math.toRadians(0), minRange: 300 });
+            } catch (e) {
+              console.warn('FlyTo failed for census tract feature:', e);
+            }
+            return;
+          }
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+        /**
+         * Load redlining GeoJSON
+         */
+        Cesium.GeoJsonDataSource.load('./data/redlining.geojson', {
+          clampToGround: true
+        }).then(function(dataSource) {
+          viewer.dataSources.add(dataSource);
+          redliningDataSource = dataSource;
+
+          dataSource.entities.values.forEach(function(entity) {
+            if (Cesium.defined(entity.polygon)) {
+              // Get grade property
+              const gradeValue = entity.properties.grade ? entity.properties.grade.getValue() : null;
+              const grade = gradeValue || 'Other';
+              const color = gradeColors[grade] || Cesium.Color.GRAY.withAlpha(0.4);
+
+              entity.polygon.material = color;
+              entity.polygon.outline = true;
+              entity.polygon.outlineColor = color.withAlpha(0.8);
+              
+              // Drape over both terrain and 3D buildings
+              entity.polygon.classificationType = Cesium.ClassificationType.BOTH;
+              
+              // Store grade for click detection
+              entity.gradeValue = grade;
+              
+              // Store entity by grade for filtering
+              if (entitiesByGrade[grade]) {
+                entitiesByGrade[grade].push(entity);
+              }
+            }
+          });
+
+          // Hide Other grade entities by default
+          entitiesByGrade['Other'].forEach(entity => {
+            entity.show = false;
+          });
+
+          // Hide redlining data source by default
+          dataSource.show = false;
+        }).catch(error => {
+          console.error('Error loading redlining layer:', error);
+        });
+
+        /**
+         * Load Local Stories CSV points
+         */
+        fetch('./data/Georeferenced_Points_Local_Stories_Distilled.csv')
+          .then(response => {
+            if (!response.ok) throw new Error(`Could not load Local Stories CSV (${response.status})`);
+            return response.text();
+          })
+          .then(csvText => {
+            function parseCsv(text) {
+              const rows = [];
+              let row = [];
+              let value = '';
+              let inQuotes = false;
+
+              for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (char === '"') {
+                  if (inQuotes && text[i + 1] === '"') {
+                    value += '"';
+                    i++;
+                  } else {
+                    inQuotes = !inQuotes;
+                  }
+                } else if (char === ',' && !inQuotes) {
+                  row.push(value);
+                  value = '';
+                } else if ((char === '\n' || char === '\r') && !inQuotes) {
+                  if (char === '\r' && text[i + 1] === '\n') i++;
+                  row.push(value);
+                  if (row.some(field => field.trim() !== '')) rows.push(row);
+                  row = [];
+                  value = '';
+                } else {
+                  value += char;
+                }
+              }
+
+              if (value !== '' || row.length > 0) {
+                row.push(value);
+                if (row.some(field => field.trim() !== '')) rows.push(row);
+              }
+              return rows;
+            }
+
+            const rows = parseCsv(csvText.replace(/^\uFEFF/, ''));
+            if (rows.length < 2) throw new Error('Local Stories CSV contains no data rows');
+
+            const headers = rows.shift().map(header => header.trim());
+            const headerIndex = {};
+            headers.forEach((header, index) => {
+              headerIndex[header] = index;
+            });
+
+            localStoriesDataSource = new Cesium.CustomDataSource('Local Stories');
+            viewer.dataSources.add(localStoriesDataSource);
+            localStoriesDataSource.clustering.enabled = false;
+            let loadedLocalStoryCount = 0;
+
+            rows.forEach((fields, index) => {
+              const title = normalizeLocalStoryText((fields[headerIndex.Title] || '').trim());
+              const summary = normalizeLocalStoryText((fields[headerIndex.Summary] || '').trim());
+              const timePeriod = normalizeLocalStoryText((fields[headerIndex['Time Period']] || '').trim());
+              const phenomena = normalizeLocalStoryText((fields[headerIndex.Phenomena] || '').trim());
+              const georeferencing = normalizeLocalStoryText((fields[headerIndex.Georeferencing] || '').trim());
+              const latitude = parseFloat(fields[headerIndex.Latitude]);
+              const longitude = parseFloat(fields[headerIndex.Longitude]);
+
+              if (!title ||
+                  !Number.isFinite(latitude) ||
+                  !Number.isFinite(longitude) ||
+                  latitude < -90 || latitude > 90 ||
+                  longitude < -180 || longitude > 180) {
+                console.warn('Skipping invalid Local Story coordinates:', { title, latitude, longitude });
+                return;
+              }
+
+              const position = Cesium.Cartesian3.fromDegrees(longitude, latitude, 25);
+              const entity = localStoriesDataSource.entities.add({
+                name: title,
+                position: position,
+                point: {
+                  pixelSize: 10,
+                  color: Cesium.Color.RED,
+                  outlineColor: Cesium.Color.WHITE,
+                  outlineWidth: 1,
+                  heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+                  disableDepthTestDistance: Number.POSITIVE_INFINITY
+                },
+                label: {
+                  text: '',
+                  show: false
+                },
+                properties: {
+                  title: title,
+                  summary: summary,
+                  timePeriod: timePeriod,
+                  phenomena: phenomena,
+                  georeferencing: georeferencing,
+                  latitude: latitude,
+                  longitude: longitude
+                }
+              });
+
+              entity.isLocalStory = true;
+              entity.localStoryTitle = title;
+              entity.localStorySummary = summary;
+              entity.localStoryTimePeriod = timePeriod;
+              entity.localStoryPhenomena = phenomena;
+              entity.localStoryGeoreferencing = georeferencing;
+              entity.localStoryLatitude = latitude;
+              entity.localStoryLongitude = longitude;
+              loadedLocalStoryCount++;
+            });
+
+            console.info(`Local Stories loaded: ${loadedLocalStoryCount} of ${rows.length} CSV records`);
+            localStoriesDataSource.show = false;
+          })
+          .catch(error => {
+            console.error('Error loading Local Stories layer:', error);
+          });
+
+        /**
+         * Load census tracts GeoJSON - Fill layer
+         */
+        Cesium.GeoJsonDataSource.load('./data/tract2010.geojson', {
+          clampToGround: true
+        }).then(function(dataSource) {
+          viewer.dataSources.add(dataSource);
+          tractDataSource = dataSource;
+
+          dataSource.entities.values.forEach(function(entity) {
+            if (Cesium.defined(entity.polygon)) {
+              entity.polygon.material = Cesium.Color.fromCssColorString('#4c81cd').withAlpha(0.2);
+              entity.polygon.outline = true;
+              entity.polygon.outlineColor = Cesium.Color.fromCssColorString('#FF8C00').withAlpha(0.8);
+              entity.polygon.outlineWidth = 2;
+              entity.polygon.classificationType = Cesium.ClassificationType.BOTH;
+              entity.isCensusTract = true;
+              if (entity.properties.GEOID10) {
+                entity.tractId = entity.properties.GEOID10.getValue();
+              }
+            }
+          });
+
+          // Hide census tracts by default
+          dataSource.show = false;
+        }).catch(error => {
+          console.error('Error loading census tracts layer:', error);
+        });
+
+        /**
+         * Load census tracts GeoJSON - Polyline layer (outline as polylines on top)
+         */
+        Cesium.GeoJsonDataSource.load('./data/tract2010.geojson', {
+          clampToGround: true
+        }).then(function(dataSource) {
+          viewer.dataSources.add(dataSource);
+          tractOutlineDataSource = dataSource;
+
+          dataSource.entities.values.forEach(function(entity) {
+            if (Cesium.defined(entity.polygon)) {
+              // Hide polygon fill and outline
+              entity.polygon.fill = false;
+              entity.polygon.outline = false;
+              
+              // Extract polygon coordinates and create polyline
+              const positions = entity.polygon.hierarchy.getValue(Cesium.JulianDate.now()).positions;
+              
+              if (positions && positions.length > 0) {
+                // Close the polyline loop by adding first point at end if needed
+                const polylinePositions = positions.slice();
+                if (!Cesium.Cartesian3.equals(polylinePositions[0], polylinePositions[polylinePositions.length - 1])) {
+                  polylinePositions.push(polylinePositions[0]);
+                }
+                
+                // Create polyline entity
+                viewer.entities.add({
+                  polyline: new Cesium.PolylineGraphics({
+                    positions: polylinePositions,
+                    width: 3,
+                    material: Cesium.Color.fromCssColorString('#000000'),
+                    clampToGround: true,
+                    classificationType: Cesium.ClassificationType.BOTH
+                  }),
+                  isCensusTractPolyline: true,
+                  show: false
+                });
+              }
+              
+              entity.isCensusTract = true;
+              if (entity.properties.GEOID10) {
+                entity.tractId = entity.properties.GEOID10.getValue();
+              }
+            }
+          });
+
+          // Hide census tracts polygon layer (only polylines show)
+          dataSource.show = false;
+        }).catch(error => {
+          console.error('Error loading census tracts outline layer:', error);
+        });
+
+        /**
+         * Load neighborhoods GeoJSON - Fill layer
+         */
+        Cesium.GeoJsonDataSource.load('./data/neighborhoods.geojson', {
+          clampToGround: true
+        }).then(function(dataSource) {
+          viewer.dataSources.add(dataSource);
+          neighborhoodsDataSource = dataSource;
+          
+          dataSource.entities.values.forEach(function(entity) {
+            if (Cesium.defined(entity.polygon)) {
+              entity.polygon.fill = true;
+              entity.polygon.outline = false;
+              entity.polygon.perPositionHeight = false;
+              entity.polygon.heightReference = Cesium.HeightReference.NONE;
+              entity.polygon.classificationType = Cesium.ClassificationType.BOTH;
+              entity.isNeighborhood = true;
+              if (entity.properties.name) {
+                entity.neighborhoodName = entity.properties.name.getValue();
+              } else if (entity.properties.Neighborho) {
+                entity.neighborhoodName = entity.properties.Neighborho.getValue();
+              }
+              entity.polygon.material = getNeighborhoodFillColor(entity.neighborhoodName);
+            }
+          });
+          // Hide neighborhoods fill layer by default
+          dataSource.show = false;
+        }).catch(error => {
+          console.error('Error loading neighborhoods fill layer:', error);
+        });
+
+        /**
+         * Load Iowa and Nebraska county administration boundaries.
+         */
+        async function loadAdministrationCountyLayer(url, dataSourceName, fillColor, outlineColor, checkboxId) {
+          try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const geoJson = await response.json();
+
+            const meterRadius = 6378137;
+            const webMercatorToLngLat = function(coordinates) {
+              if (!Array.isArray(coordinates)) return coordinates;
+              if (coordinates.length >= 2 &&
+                  typeof coordinates[0] === 'number' &&
+                  typeof coordinates[1] === 'number') {
+                const longitude = (coordinates[0] / meterRadius) * (180 / Math.PI);
+                const latitude = (Math.atan(Math.sinh(coordinates[1] / meterRadius))) * (180 / Math.PI);
+                return [longitude, latitude];
+              }
+              return coordinates.map(webMercatorToLngLat);
+            };
+
+            geoJson.features.forEach(feature => {
+              if (feature.geometry && feature.geometry.coordinates) {
+                feature.geometry.coordinates = webMercatorToLngLat(feature.geometry.coordinates);
+              }
+            });
+
+            const dataSource = new Cesium.CustomDataSource(dataSourceName);
+            viewer.dataSources.add(dataSource);
+
+            const ringToPositions = ring => ring.map(coordinate =>
+              Cesium.Cartesian3.fromDegrees(coordinate[0], coordinate[1])
+            );
+
+            geoJson.features.forEach(feature => {
+              if (!feature.geometry || !feature.geometry.coordinates) return;
+              const name = String(feature.properties && feature.properties.NAME || '').trim();
+              const polygons = feature.geometry.type === 'MultiPolygon'
+                ? feature.geometry.coordinates
+                : [feature.geometry.coordinates];
+
+              polygons.forEach(polygonCoordinates => {
+                if (!polygonCoordinates || polygonCoordinates.length === 0) return;
+                const outerPositions = ringToPositions(polygonCoordinates[0]);
+                if (outerPositions.length < 3) return;
+
+                const holes = polygonCoordinates.slice(1).map(hole =>
+                  new Cesium.PolygonHierarchy(ringToPositions(hole))
+                );
+                const entity = dataSource.entities.add({
+                  name: name,
+                  polygon: {
+                    hierarchy: new Cesium.PolygonHierarchy(outerPositions, holes),
+                    fill: true,
+                    material: fillColor.withAlpha(0.55),
+                    outline: false,
+                    classificationType: Cesium.ClassificationType.BOTH
+                  }
+                });
+
+                const addOverlayOutline = ring => {
+                  if (!ring || ring.length < 2) return;
+                  const positions = ring.map(coordinate =>
+                    Cesium.Cartesian3.fromDegrees(coordinate[0], coordinate[1], 50)
+                  );
+                  const first = ring[0];
+                  const last = ring[ring.length - 1];
+                  if (Math.abs(first[0] - last[0]) > 0.0000001 ||
+                      Math.abs(first[1] - last[1]) > 0.0000001) {
+                    positions.push(Cesium.Cartesian3.clone(positions[0]));
+                  }
+                  dataSource.entities.add({
+                    polyline: {
+                      positions,
+                      width: 2,
+                      material: outlineColor.withAlpha(0.95),
+                      arcType: Cesium.ArcType.NONE,
+                      disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                  });
+                };
+
+                addOverlayOutline(polygonCoordinates[0]);
+                polygonCoordinates.slice(1).forEach(addOverlayOutline);
+
+                if (name) {
+                  const center = Cesium.BoundingSphere.fromPoints(outerPositions).center;
+                  entity.position = center;
+                  entity.label = {
+                    text: name,
+                    font: '600 12px sans-serif',
+                    fillColor: Cesium.Color.WHITE,
+                    outlineColor: Cesium.Color.BLACK.withAlpha(0.85),
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                    horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                    disableDepthTestDistance: 500000
+                  };
+                }
+              });
+            });
+
+            dataSource.show = document.getElementById(checkboxId).checked;
+            if (dataSourceName === 'Iowa Counties') iowaCountiesDataSource = dataSource;
+            if (dataSourceName === 'Nebraska Counties') nebraskaCountiesDataSource = dataSource;
+          } catch (error) {
+            console.error(`Error loading ${dataSourceName}:`, error && error.stack ? error.stack : String(error));
+          }
+        }
+
+        loadAdministrationCountyLayer(
+          './data/iowa.geojson',
+          'Iowa Counties',
+          Cesium.Color.fromCssColorString('#d0d0d0'),
+          Cesium.Color.fromCssColorString('#4a4a4a'),
+          'toggleIowaCounties'
+        );
+        loadAdministrationCountyLayer(
+          './data/nebreska.geojson',
+          'Nebraska Counties',
+          Cesium.Color.fromCssColorString('#9e9e9e'),
+          Cesium.Color.fromCssColorString('#303030'),
+          'toggleNebraskaCounties'
+        );
+
+        /**
+         * Load parcels GeoJSON - Parcels with taxlist details
+         */
+        Cesium.GeoJsonDataSource.load('./data/trentonParcels_taxlist_detail.json', {
+          clampToGround: true
+        }).then(function(dataSource) {
+          viewer.dataSources.add(dataSource);
+          parcelsDataSource = dataSource;
+
+          dataSource.entities.values.forEach(function(entity) {
+            // Style polygons (parcels)
+            if (Cesium.defined(entity.polygon)) {
+              if (Cesium.defined(entity.polygon)) {
+                // Determine feature type robustly
+                let rawType = '';
+                try {
+                  if (entity.properties && entity.properties.type && typeof entity.properties.type.getValue === 'function') {
+                    rawType = entity.properties.type.getValue();
+                  } else if (entity.type) {
+                    rawType = entity.type;
+                  }
+                } catch (e) {
+                  rawType = '';
+                }
+
+                const typeStr = String(rawType || '').toLowerCase();
+
+                // Classify into one of our keys
+                let key = 'other';
+                if (typeStr.includes('single') && typeStr.includes('unit')) {
+                  key = 'multiUnitSingleFamily';
+                } else if (typeStr.includes('multi') && (typeStr.includes('unit') || typeStr.includes('building'))) {
+                  key = 'multiUnitBuildings';
+                } else if (typeStr.includes('single') || typeStr.includes('single-family')) {
+                  key = 'singleFamily';
+                } else if (typeStr.includes('commercial')) {
+                  key = 'commercial';
+                } else if (typeStr.includes('land') || typeStr.includes('social') || typeStr.includes('cultural')) {
+                  key = 'landSocialCultural';
+                }
+
+                const colorHex = parcelTypeColors[key] || parcelTypeColors.other;
+                const fill = Cesium.Color.fromCssColorString(colorHex).withAlpha(0.30);
+                const outline = Cesium.Color.fromCssColorString(colorHex).withAlpha(0.95);
+
+                entity.polygon.fill = true;
+                entity.polygon.material = fill;
+                entity.polygon.outline = true;
+                entity.polygon.outlineColor = outline;
+                entity.polygon.outlineWidth = 2;
+                entity.polygon.classificationType = Cesium.ClassificationType.BOTH;
+                entity.isParcel = true;
+                entity.parcelTypeKey = key;
+                // Store by type for interactive toggles
+                if (parcelsByType[key]) {
+                  parcelsByType[key].push(entity);
+                }
+                // Set entity visibility to match the default legend state (datasource remains off)
+                try {
+                  entity.show = !!visibleParcelTypes[key];
+                } catch (e) {
+                  // ignore
+                }
+              }
+            }
+
+            // Some parcel files may have polylines instead of polygons
+            if (Cesium.defined(entity.polyline)) {
+              entity.polyline.width = 1;
+              entity.polyline.material = Cesium.Color.fromCssColorString('#00ffcc').withAlpha(0.6);
+            }
+          });
+
+          // Parcels default hidden (user can toggle on)
+          dataSource.show = false;
+          console.log('Parcels layer loaded, entities:', dataSource.entities.values.length);
+        }).catch(error => {
+          console.error('Error loading parcels layer:', error);
+        });
+
+        // `hotspots_pg` layer removed — load block intentionally omitted
+
+        /**
+         * Load employment type GeoJSON
+         */
+        Cesium.GeoJsonDataSource.load('./data/employment_type.geojson', {
+          clampToGround: true
+        }).then(function(dataSource) {
+          viewer.dataSources.add(dataSource);
+          employmentTypeDataSource = dataSource;
+
+          dataSource.entities.values.forEach(function(entity) {
+            if (Cesium.defined(entity.polygon)) {
+              entity.polygon.material = Cesium.Color.fromCssColorString('#FF6B6B').withAlpha(0.5);
+              entity.polygon.outline = true;
+              entity.polygon.outlineColor = Cesium.Color.fromCssColorString('#FF6B6B').withAlpha(0.8);
+              entity.polygon.classificationType = Cesium.ClassificationType.BOTH;
+            }
+          });
+
+          // Employment type layer hidden by default
+          dataSource.show = false;
+        }).catch(error => {
+          console.error('Error loading employment type layer:', error);
+        });
+
+        /**
+         * Load unemployment rate GeoJSON
+         */
+        Cesium.GeoJsonDataSource.load('./data/unemployment_rate.geojson', {
+          clampToGround: true
+        }).then(function(dataSource) {
+          viewer.dataSources.add(dataSource);
+          unemploymentRateDataSource = dataSource;
+
+          dataSource.entities.values.forEach(function(entity) {
+            if (Cesium.defined(entity.polygon)) {
+              // Determine unemployment rate value (robust for GeoJSON properties)
+              let rate = null;
+              try {
+                if (entity.properties && entity.properties.unemp_rate && typeof entity.properties.unemp_rate.getValue === 'function') {
+                  rate = parseFloat(entity.properties.unemp_rate.getValue());
+                } else if (entity.properties && entity.properties.unemp_rate) {
+                  rate = parseFloat(entity.properties.unemp_rate);
+                } else if (entity.properties && entity.properties.unemp_rate && typeof entity.properties.unemp_rate === 'number') {
+                  rate = entity.properties.unemp_rate;
+                }
+              } catch (e) {
+                rate = null;
+              }
+
+              // Color gradient from low (#5a261f) to high (#ffc4ae)
+              const lowHex = '#5a261f';
+              const highHex = '#ffc4ae';
+              const vmin = 0.0398; // minimum unemployment rate
+              const vmax = 0.3782; // maximum unemployment rate
+
+              function hexToRgb(hex) {
+                const h = hex.replace('#','');
+                return [parseInt(h.substring(0,2),16), parseInt(h.substring(2,4),16), parseInt(h.substring(4,6),16)];
+              }
+
+              function interpColor(lowHex, highHex, t) {
+                const low = hexToRgb(lowHex);
+                const high = hexToRgb(highHex);
+                const r = Math.round(low[0] + (high[0] - low[0]) * t);
+                const g = Math.round(low[1] + (high[1] - low[1]) * t);
+                const b = Math.round(low[2] + (high[2] - low[2]) * t);
+                return Cesium.Color.fromBytes(r, g, b);
+              }
+
+              // stronger fill and outline alpha for improved visibility
+              let fillColor = Cesium.Color.fromCssColorString(lowHex).withAlpha(0.65);
+              let outlineColor = Cesium.Color.fromCssColorString(lowHex).withAlpha(0.95);
+              if (rate !== null && !isNaN(rate)) {
+                // normalize and clamp
+                let t = (rate - vmin) / (vmax - vmin);
+                if (t < 0) t = 0;
+                if (t > 1) t = 1;
+                fillColor = interpColor(lowHex, highHex, t).withAlpha(0.65);
+                outlineColor = interpColor(lowHex, highHex, t).withAlpha(0.95);
+              }
+
+              entity.polygon.material = fillColor;
+              entity.polygon.outline = true;
+              entity.polygon.outlineColor = outlineColor;
+              entity.polygon.classificationType = Cesium.ClassificationType.BOTH;
+            }
+          });
+
+          // Unemployment rate layer hidden by default
+          dataSource.show = false;
+        }).catch(error => {
+          console.error('Error loading unemployment rate layer:', error);
+        });
+
+        /**
+         * Load employment type GeoJSON
+         */
+        Cesium.GeoJsonDataSource.load('./data/employment_type.geojson', {
+          clampToGround: true
+        }).then(function(dataSource) {
+          viewer.dataSources.add(dataSource);
+          employmentTypeDataSource = dataSource;
+
+          dataSource.entities.values.forEach(function(entity) {
+            if (Cesium.defined(entity.polygon)) {
+              // Determine population value (robust for GeoJSON properties)
+              let pop = null;
+              try {
+                if (entity.properties && entity.properties.pop && typeof entity.properties.pop.getValue === 'function') {
+                  pop = parseFloat(entity.properties.pop.getValue());
+                } else if (entity.properties && entity.properties.pop) {
+                  pop = parseFloat(entity.properties.pop);
+                } else if (entity.properties && entity.properties.pop && typeof entity.properties.pop === 'number') {
+                  pop = entity.properties.pop;
+                }
+              } catch (e) {
+                pop = null;
+              }
+
+              // Color gradient from low (#1a406f) to high (#87ceeb) - blue ramp for employment
+              const lowHex = '#1a406f';   // darker blue (low pop)
+              const highHex = '#87ceeb';  // sky blue (high pop)
+              const vmin = 1;             // minimum population
+              const vmax = 2517;          // maximum population
+
+              function hexToRgb(hex) {
+                const h = hex.replace('#','');
+                return [parseInt(h.substring(0,2),16), parseInt(h.substring(2,4),16), parseInt(h.substring(4,6),16)];
+              }
+
+              function interpColor(lowHex, highHex, t) {
+                const low = hexToRgb(lowHex);
+                const high = hexToRgb(highHex);
+                const r = Math.round(low[0] + (high[0] - low[0]) * t);
+                const g = Math.round(low[1] + (high[1] - low[1]) * t);
+                const b = Math.round(low[2] + (high[2] - low[2]) * t);
+                return Cesium.Color.fromBytes(r, g, b);
+              }
+
+              let fillColor = Cesium.Color.fromCssColorString(lowHex).withAlpha(0.65);
+              let outlineColor = Cesium.Color.fromCssColorString(lowHex).withAlpha(0.95);
+              if (pop !== null && !isNaN(pop)) {
+                let t = (pop - vmin) / (vmax - vmin);
+                if (t < 0) t = 0;
+                if (t > 1) t = 1;
+                fillColor = interpColor(lowHex, highHex, t).withAlpha(0.65);
+                outlineColor = interpColor(lowHex, highHex, t).withAlpha(0.95);
+              }
+
+              entity.polygon.material = fillColor;
+              entity.polygon.outline = true;
+              entity.polygon.outlineColor = outlineColor;
+              entity.polygon.classificationType = Cesium.ClassificationType.BOTH;
+            }
+          });
+
+          // Employment type layer hidden by default
+          dataSource.show = false;
+        }).catch(error => {
+          console.error('Error loading employment type layer:', error);
+        });
+
+        /**
+         * Setup all event listeners after viewer is fully initialized
+         */
+        setupEventListeners();
+      })
+      .catch(error => {
+        console.error('Error initializing viewer:', error);
+      });
+
+    /**
+     * Setup all UI event listeners (runs after viewer initialization)
+     */
+    function setupEventListeners() {
+      if (viewer) {
+        viewer.scene.postRender.addEventListener(function() {
+          const entity = pinnedLocalStoryEntity || hoveredLocalStoryEntity;
+          if (!entity || !localStoriesDataSource || !localStoriesDataSource.show) return;
+          const position = entity.position.getValue(viewer.clock.currentTime);
+          if (!position) return;
+          const screenPosition = viewer.scene.cartesianToCanvasCoordinates(position);
+          positionLocalStoryCard(screenPosition);
+        });
+      }
+
+      /**
+       * Boundaries group expand/collapse
+       */
+      const boundariesToggle = document.getElementById('boundariesToggle');
+      const boundariesContent = document.getElementById('boundariesContent');
+      
+      if (boundariesToggle && boundariesContent) {
+        // Load state from localStorage
+        const isCollapsed = localStorage.getItem('boundariesCollapsed') === 'true';
+        if (isCollapsed) {
+          boundariesToggle.classList.add('collapsed');
+          boundariesContent.classList.add('collapsed');
+        }
+        
+        boundariesToggle.addEventListener('click', () => {
+          const nowCollapsed = boundariesToggle.classList.toggle('collapsed');
+          boundariesContent.classList.toggle('collapsed');
+          localStorage.setItem('boundariesCollapsed', nowCollapsed);
+        });
+      }
+
+      /**
+       * Administration boundaries group expand/collapse
+       */
+      const administrationToggle = document.getElementById('administrationToggle');
+      const administrationContent = document.getElementById('administrationContent');
+
+      if (administrationToggle && administrationContent) {
+        const isCollapsed = localStorage.getItem('administrationCollapsed') === 'true';
+        if (isCollapsed) {
+          administrationToggle.classList.add('collapsed');
+          administrationContent.classList.add('collapsed');
+        }
+
+        administrationToggle.addEventListener('click', () => {
+          const nowCollapsed = administrationToggle.classList.toggle('collapsed');
+          administrationContent.classList.toggle('collapsed');
+          localStorage.setItem('administrationCollapsed', nowCollapsed);
+        });
+      }
+
+      document.getElementById('toggleIowaCounties').addEventListener('change', e => {
+        if (iowaCountiesDataSource) iowaCountiesDataSource.show = e.target.checked;
+      });
+
+      document.getElementById('toggleNebraskaCounties').addEventListener('change', e => {
+        if (nebraskaCountiesDataSource) nebraskaCountiesDataSource.show = e.target.checked;
+      });
+
+      /**
+       * Toggle Google 3D Tiles layer visibility
+       */
+      document.getElementById('toggleGoogle3D').addEventListener('change', e => {
+        if (tileset) {
+          tileset.show = e.target.checked;
+        }
+      });
+
+      document.getElementById('toggleLocalStories').addEventListener('change', e => {
+        if (localStoriesDataSource) {
+          localStoriesDataSource.show = e.target.checked;
+          if (!e.target.checked) {
+            hideLocalStoryCard();
+            hideLocalStoryMindMap();
+          }
+        }
+      });
+
+      /**
+       * Toggle neighborhoods layers visibility
+       */
+      document.getElementById('toggleNeighborhoods').addEventListener('change', e => {
+        if (neighborhoodsDataSource) {
+          neighborhoodsDataSource.show = e.target.checked;
+        }
+      });
+
+      /**
+       * Toggle redlining layer visibility
+       */
+      document.getElementById('toggleRedlining').addEventListener('change', e => {
+        if (redliningDataSource) {
+          redliningDataSource.show = e.target.checked;
+        }
+      });
+
+      /**
+       * Toggle individual redlining grades visibility
+       */
+      document.querySelectorAll('[id^="toggleGrade"]').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+          e.stopPropagation();
+          const grade = e.target.dataset.grade;
+          visibleGrades[grade] = e.target.checked;
+
+          // Update entity visibility for this grade
+          entitiesByGrade[grade].forEach(entity => {
+            entity.show = visibleGrades[grade];
+          });
+        });
+      });
+
+      /**
+       * Toggle parcel type visibility (interactive legend behavior)
+       */
+      document.querySelectorAll('[id^="toggleParcel_"]').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+          e.stopPropagation();
+          const type = e.target.dataset.parcel;
+          visibleParcelTypes[type] = e.target.checked;
+
+          // If any parcel type is visible, ensure the dataSource is shown
+          const anyVisible = Object.values(visibleParcelTypes).some(v => v === true);
+          if (parcelsDataSource) parcelsDataSource.show = anyVisible;
+
+          const list = parcelsByType[type] || [];
+          list.forEach(entity => {
+            entity.show = e.target.checked;
+          });
+        });
+      });
+
+      // Hover sneak-peek for parcel type labels
+      document.querySelectorAll('[id^="toggleParcel_"]').forEach(checkbox => {
+        const label = checkbox.parentElement;
+        if (!label) return;
+        label.addEventListener('mouseenter', () => {
+          const type = checkbox.dataset.parcel;
+          const currentState = checkbox.checked;
+          (parcelsByType[type] || []).forEach(entity => {
+            entity.show = !currentState;
+          });
+        });
+        label.addEventListener('mouseleave', () => {
+          const type = checkbox.dataset.parcel;
+          (parcelsByType[type] || []).forEach(entity => {
+            entity.show = visibleParcelTypes[type];
+          });
+        });
+      });
+
+      /**
+       * Sneak peek - show/hide layers on hover
+       */
+
+      // Neighborhoods layer sneak peek
+      const neighborhoodsLabel = document.querySelector('label[for="toggleNeighborhoods"]')?.parentElement || 
+                                  document.querySelector('label:has(#toggleNeighborhoods)');
+      if (neighborhoodsLabel) {
+        neighborhoodsLabel.addEventListener('mouseenter', () => {
+          if (neighborhoodsDataSource) neighborhoodsDataSource.show = !neighborhoodsDataSource.show;
+        });
+        neighborhoodsLabel.addEventListener('mouseleave', () => {
+          if (neighborhoodsDataSource) neighborhoodsDataSource.show = document.getElementById('toggleNeighborhoods').checked;
+        });
+      }
+
+      // Redlining layer sneak peek
+      const redliningLabel = document.querySelector('label[for="toggleRedlining"]')?.parentElement || 
+                             document.querySelector('label:has(#toggleRedlining)');
+      if (redliningLabel) {
+        redliningLabel.addEventListener('mouseenter', () => {
+          if (redliningDataSource) redliningDataSource.show = !redliningDataSource.show;
+        });
+        redliningLabel.addEventListener('mouseleave', () => {
+          if (redliningDataSource) redliningDataSource.show = document.getElementById('toggleRedlining').checked;
+        });
+      }
+
+      // Grade toggles sneak peek
+      document.querySelectorAll('[id^="toggleGrade"]').forEach(checkbox => {
+        const label = checkbox.parentElement;
+        label.addEventListener('mouseenter', () => {
+          const grade = checkbox.dataset.grade;
+          const currentState = checkbox.checked;
+          entitiesByGrade[grade].forEach(entity => {
+            entity.show = !currentState;
+          });
+        });
+        label.addEventListener('mouseleave', () => {
+          const grade = checkbox.dataset.grade;
+          entitiesByGrade[grade].forEach(entity => {
+            entity.show = visibleGrades[grade];
+          });
+        });
+      });
+
+      // Click handler for feature popup (unemployment & employment type polygons)
+      try {
+        const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        clickHandler.setInputAction(function(click) {
+          const picked = viewer.scene.pick(click.position);
+          if (Cesium.defined(picked) && Cesium.defined(picked.id)) {
+            const entity = picked.id;
+            // Open unemployment popup if entity has unemp_rate property
+            try {
+              if (entity && entity.properties) {
+                const hasUnempRate = entity.properties.unemp_rate || entity.properties.unemp_rate === 0;
+                const hasPop = entity.properties.pop || entity.properties.pop === 0;
+                
+                if (hasUnempRate) {
+                  openUnemploymentPopup(entity);
+                } else if (hasPop) {
+                  // Employment type layer has pop property
+                  openEmploymentTypePopup(entity);
+                }
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+      } catch (e) {
+        console.warn('Could not attach click handler for popups:', e);
+      }
+    }
+
+    /**
+     * Open feature popup with details
+     */
+    
+    /**
+     * Open Unemployment popup for a clicked entity
+     */
+    function openUnemploymentPopup(entity) {
+      try {
+        const props = entity.properties || {};
+        function getVal(name) {
+          try {
+            if (props[name] && typeof props[name].getValue === 'function') return Number(props[name].getValue());
+            if (props[name] !== undefined) return Number(props[name]);
+          } catch (e) {}
+          return null;
+        }
+
+        const rateRaw = getVal('unemp_rate');
+        const rateDisplay = (rateRaw !== null && !isNaN(rateRaw)) ? (Number(rateRaw) * 100).toFixed(2) + '%' : 'N/A';
+
+        // Age groups mapping (labels taken from provided attachment)
+        const ageFields = ['age1_unem','age2_unem','age3_unem','age4_unem','age5_unem','age6_unem','age7_unem','age8_unem','age9_unem','age10_unem','age11_unem','age12_unem','age13_unem'];
+        const ageLabels = ['16–19','20–21','22–24','25–29','30–34','35–44','45–54','55–59','60–61','62–64','65–69','70–74','75+'];
+
+        const values = ageFields.map(f => {
+          const v = getVal(f);
+          return (v === null || isNaN(v)) ? 0 : v;
+        });
+
+        const chartSvg = renderBarChartSVG(values, ageLabels, {width: 360, barHeight: 14, gap: 6});
+
+        const content = `
+          <p><strong>Unemployment Rate:</strong> ${rateDisplay}</p>
+          <div style="margin-top:6px">${chartSvg}</div>
+        `;
+
+        document.getElementById('popupTitle').textContent = 'Unemployment Rate (%)';
+        document.getElementById('popupContent').innerHTML = content;
+        document.getElementById('featurePopup').classList.add('visible');
+        document.getElementById('featurePopup').dataset.featureType = 'unemployment';
+      } catch (err) {
+        console.error('openUnemploymentPopup error:', err);
+      }
+    }
+
+    /**
+     * Render a simple horizontal bar chart as SVG
+     * values: array of numbers; labels: same-length array of strings
+     * opts.leftHeader: left column header text (default: 'Age Group')
+     * opts.rightHeader: right column header text (default: 'Unemployed Population')
+     */
+    function renderBarChartSVG(values, labels, opts) {
+      opts = opts || {};
+      const width = opts.width || 360;
+      const barHeight = opts.barHeight || 12;
+      const gap = opts.gap || 4;
+      const maxVal = Math.max.apply(null, values.concat([1]));
+      const leftHeader = opts.leftHeader || 'Age Group';
+      const rightHeader = opts.rightHeader || 'Unemployed Population';
+
+      // Detect if labels are long (for employment type with full job category names)
+      const hasLongLabels = labels.some(l => l.length > 20);
+
+      if (hasLongLabels) {
+        // Helper function to wrap text into multiple lines
+        function wrapText(text, maxWidth, fontSize) {
+          const charWidth = fontSize * 0.55; // Approximate character width
+          const charsPerLine = Math.floor(maxWidth / charWidth);
+          const words = text.split(' ');
+          const lines = [];
+          let currentLine = '';
+
+          words.forEach(word => {
+            if ((currentLine + word).length <= charsPerLine) {
+              currentLine += (currentLine ? ' ' : '') + word;
+            } else {
+              if (currentLine) lines.push(currentLine);
+              currentLine = word;
+            }
+          });
+          if (currentLine) lines.push(currentLine);
+          return lines;
+        }
+
+        // Vertical layout: centered label above, bar below, value on right
+        const barWidth = 240;
+        const barLeft = (width - barWidth) / 2;
+        const labelBottomMargin = 4;
+        const rowGap = 18;
+        const maxLabelLines = 3;
+        const fontSize = 10;
+        const lineHeight = 12;
+        
+        // Calculate height considering wrapped text
+        let yPos = 24;
+        values.forEach((v, i) => {
+          const label = labels[i] || '';
+          const wrappedLines = wrapText(label, width - 20, fontSize);
+          const numLines = Math.min(wrappedLines.length, maxLabelLines);
+          yPos += numLines * lineHeight; // label height
+          yPos += labelBottomMargin + 4; // small gap after label
+          yPos += barHeight + 4; // bar height + small gap
+          yPos += rowGap; // space before next row
+        });
+
+        let svg = `<svg width="${width}" height="${yPos}" xmlns="http://www.w3.org/2000/svg">`;
+
+        let currentY = 24;
+        values.forEach((v, i) => {
+          const label = labels[i] || '';
+          const valText = v.toString();
+          
+          // Wrap the label text
+          const wrappedLines = wrapText(label, width - 20, fontSize);
+          const numLines = Math.min(wrappedLines.length, maxLabelLines);
+
+          // Centered wrapped label lines
+          wrappedLines.slice(0, maxLabelLines).forEach((line, lineIdx) => {
+            svg += `<text x="${width/2}" y="${currentY + lineIdx * lineHeight}" font-family="Karla, sans-serif" font-size="${fontSize}" fill="#ddd" text-anchor="middle">${line}</text>`;
+          });
+          currentY += numLines * lineHeight + labelBottomMargin + 4;
+
+          // Bar background
+          const barW = (maxVal > 0) ? Math.round((v / maxVal) * barWidth) : 0;
+          svg += `<rect x="${barLeft}" y="${currentY}" width="${barWidth}" height="${barHeight}" fill="#2b2b2b" rx="2" />`;
+          // Value bar (off-white)
+          svg += `<rect x="${barLeft}" y="${currentY}" width="${barW}" height="${barHeight}" fill="#f5f5f5" rx="2" />`;
+          // Value text on right
+          svg += `<text x="${barLeft + barWidth + 8}" y="${currentY + barHeight/2 + 4}" font-family="Karla, sans-serif" font-size="11" fill="#ddd">${valText}</text>`;
+
+          currentY += barHeight + rowGap;
+        });
+
+        svg += `</svg>`;
+        return svg;
+      } else {
+        // Original horizontal layout for short labels (age groups)
+        const leftLabelWidth = 72;
+        const rightValueWidth = 36;
+        const innerWidth = width - leftLabelWidth - rightValueWidth - 12;
+        const topPadding = opts.topPadding || 18;
+        const height = topPadding + values.length * (barHeight + gap);
+
+        let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+
+        // Header labels
+        svg += `<text x="${leftLabelWidth-6}" y="${topPadding-6}" font-family="Karla, sans-serif" font-size="12" fill="#fff" text-anchor="end" font-weight="600">${leftHeader}</text>`;
+        svg += `<text x="${width-6}" y="${topPadding-6}" font-family="Karla, sans-serif" font-size="12" fill="#fff" text-anchor="end" font-weight="600">${rightHeader}</text>`;
+
+        values.forEach((v, i) => {
+          const y = topPadding + i * (barHeight + gap);
+          const barW = (maxVal > 0) ? Math.round((v / maxVal) * innerWidth) : 0;
+          const label = labels[i] || '';
+          const valText = v.toString();
+
+          // background bar
+          svg += `<rect x="${leftLabelWidth}" y="${y}" width="${innerWidth}" height="${barHeight}" fill="#2b2b2b" rx="2" />`;
+          // value bar (off-white, no gradient)
+          svg += `<rect x="${leftLabelWidth}" y="${y}" width="${barW}" height="${barHeight}" fill="#f5f5f5" rx="2" />`;
+          // label text
+          svg += `<text x="${leftLabelWidth-6}" y="${y + barHeight/2 +4}" font-family="Karla, sans-serif" font-size="11" fill="#ddd" text-anchor="end">${label}</text>`;
+          // value text
+          svg += `<text x="${leftLabelWidth + innerWidth + 8}" y="${y + barHeight/2 +4}" font-family="Karla, sans-serif" font-size="11" fill="#ddd">${valText}</text>`;
+        });
+
+        // Define gradient
+        svg += `
+          <defs>
+            <linearGradient id="unempGrad" x1="0%" x2="100%" y1="0%" y2="0%">
+              <stop offset="0%" stop-color="#5a261f" />
+              <stop offset="50%" stop-color="#7b4238" />
+              <stop offset="100%" stop-color="#ffc4ae" />
+            </linearGradient>
+          </defs>`;
+
+        svg += `</svg>`;
+        return svg;
+      }
+    }
+    
+    /**
+     * Open Employment Type popup for a clicked entity
+     */
+    function openEmploymentTypePopup(entity) {
+      try {
+        const props = entity.properties || {};
+        function getVal(name) {
+          try {
+            if (props[name] && typeof props[name].getValue === 'function') return Number(props[name].getValue());
+            if (props[name] !== undefined) return Number(props[name]);
+          } catch (e) {}
+          return null;
+        }
+
+        const popRaw = getVal('pop');
+        const popDisplay = (popRaw !== null && !isNaN(popRaw)) ? popRaw : 'N/A';
+
+        // Job type fields mapping (13 job categories)
+        const jobFields = ['job1','job2','job3','job4','job5','job6','job7','job8','job9','job10','job11','job12','job13'];
+        const jobLabels = [
+          'Agriculture, forestry, fishing and hunting, and mining',
+          'Construction',
+          'Manufacturing',
+          'Wholesale trade',
+          'Retail trade',
+          'Transportation and warehousing, and utilities',
+          'Information',
+          'Finance, insurance, real estate and rental and leasing',
+          'Professional, scientific, management, administrative, and waste management services',
+          'Educational, health and social services',
+          'Arts, entertainment, recreation, accommodation and food services',
+          'Other services (except public administration)',
+          'Public administration'
+        ];
+
+        const values = jobFields.map(f => {
+          const v = getVal(f);
+          return (v === null || isNaN(v)) ? 0 : v;
+        });
+
+        const chartSvg = renderBarChartSVG(values, jobLabels, {width: 360, barHeight: 14, gap: 6, leftHeader: 'Job Type', rightHeader: 'Employed Population'});
+
+        const content = `
+          <p><strong>Employed Population:</strong> ${popDisplay}</p>
+          <div style="margin-top:6px">${chartSvg}</div>
+        `;
+
+        document.getElementById('popupTitle').textContent = 'Employment Type';
+        document.getElementById('popupContent').innerHTML = content;
+        document.getElementById('featurePopup').classList.add('visible');
+        document.getElementById('featurePopup').dataset.featureType = 'employmentType';
+      } catch (err) {
+        console.error('openEmploymentTypePopup error:', err);
+      }
+    }
+
+    function escapeLocalStoryText(value) {
+      return normalizeLocalStoryText(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;')
+        .replace(/\r\n?|\n/g, '<br>');
+    }
+
+    function normalizeLocalStoryText(value) {
+      return String(value == null ? '' : value)
+        .replace(/\r\n?/g, '\n')
+        .replace(/\uFFFD([^�\n]*?)\uFFFD/g, '“$1”')
+        .replace(/(\d)\uFFFD(?=\d)/g, '$1–')
+        .replace(/([A-Za-z])\uFFFD(?=\d)/g, '$1–')
+        .replace(/([A-Za-z])\uFFFD(?=[A-Za-z])/g, '$1 ')
+        .replace(/^\s*\uFFFD\s*/gm, '')
+        .replace(/\uFFFD/g, '');
+    }
+
+    function renderLocalStoryPhenomena(value) {
+      const text = String(value == null ? '' : value).trim();
+      if (!text || text === 'Not available') return '';
+
+      const items = text
+        .replace(/\r\n?/g, '\n')
+        .split('\n')
+        .map(item => item.replace(/^\s*(?:[�•\u2023\u25E6\u2043]\s*|\-\s+)/, '').trim())
+        .filter(Boolean);
+
+      if (items.length === 0) return '';
+      if (items.length === 1) {
+        return `<p>${escapeLocalStoryText(items[0])}</p>`;
+      }
+      return `<ul class="local-story-bullets">${items.map(item =>
+        `<li>${escapeLocalStoryText(item)}</li>`
+      ).join('')}</ul>`;
+    }
+
+    function buildLocalStoryStreetViewUrl(entity) {
+      const latitude = Number(entity && entity.localStoryLatitude);
+      const longitude = Number(entity && entity.localStoryLongitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return '';
+      return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+    }
+
+    function getLocalStoriesAtCoordinates(latitude, longitude) {
+      if (!localStoriesDataSource) return [];
+      const latKey = Number(latitude).toFixed(6);
+      const lonKey = Number(longitude).toFixed(6);
+      return localStoriesDataSource.entities.values.filter(entity =>
+        entity.isLocalStory &&
+        Number(entity.localStoryLatitude).toFixed(6) === latKey &&
+        Number(entity.localStoryLongitude).toFixed(6) === lonKey
+      );
+    }
+
+    function showLocalStoryMindMap(stories, selectedEntity) {
+      hideLocalStoryCard();
+      const mindMap = document.getElementById('localStoryMindMap');
+      const nodesContainer = document.getElementById('localStoryMindMapNodes');
+      const centerNode = document.getElementById('localStoryMindMapCenter');
+      centerNode.style.display = 'none';
+      nodesContainer.innerHTML = '';
+      document.getElementById('localStoryMindMapHeader').textContent =
+        `${stories.length} stories at this location - chronological timeline`;
+
+      mindMap.classList.add('visible');
+
+      requestAnimationFrame(() => {
+        const canvas = document.getElementById('localStoryMindMapCanvas');
+        const sortedStories = stories.slice().sort((a, b) => {
+          const aMatch = String(a.localStoryTimePeriod || '').match(/\d{4}/);
+          const bMatch = String(b.localStoryTimePeriod || '').match(/\d{4}/);
+          const aYear = aMatch ? Number(aMatch[0]) : Number.MAX_SAFE_INTEGER;
+          const bYear = bMatch ? Number(bMatch[0]) : Number.MAX_SAFE_INTEGER;
+          return aYear - bYear ||
+            String(a.localStoryTitle || '').localeCompare(String(b.localStoryTitle || ''));
+        });
+
+        const canvasWidth = Math.max(1200, sortedStories.length * 280 + 200);
+        const canvasHeight = 620;
+        nodesContainer.style.width = `${canvasWidth}px`;
+        nodesContainer.style.height = `${canvasHeight}px`;
+        const lines = document.getElementById('localStoryMindMapLines');
+        lines.style.width = `${canvasWidth}px`;
+        lines.style.height = `${canvasHeight}px`;
+        lines.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
+
+        while (lines.firstChild) lines.removeChild(lines.firstChild);
+
+        const timelineY = 310;
+        const stepX = 280;
+        const startX = 100;
+
+        const timelineLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        timelineLine.setAttribute('x1', startX);
+        timelineLine.setAttribute('y1', timelineY);
+        timelineLine.setAttribute('x2', startX + (sortedStories.length - 1) * stepX);
+        timelineLine.setAttribute('y2', timelineY);
+        timelineLine.setAttribute('stroke', '#d96f32');
+        timelineLine.setAttribute('stroke-width', '5');
+        timelineLine.setAttribute('stroke-linecap', 'round');
+        lines.appendChild(timelineLine);
+
+        sortedStories.forEach((story, index) => {
+          const nodeX = startX + index * stepX;
+          const useTopSide = index % 2 === 0;
+          const nodeTop = useTopSide ? 70 : 386;
+
+          const node = document.createElement('button');
+          node.type = 'button';
+          node.className = 'local-story-timeline-node';
+          node.style.left = `${nodeX - 115}px`;
+          node.style.top = `${nodeTop}px`;
+          node.setAttribute('aria-label', story.localStoryTitle);
+          node.innerHTML =
+            `<strong>${escapeLocalStoryText(story.localStoryTitle)}</strong>` +
+            `<span class="timeline-period">${escapeLocalStoryText(story.localStoryTimePeriod || 'Time period not available')}</span>`;
+          node.addEventListener('click', () => {
+            hideLocalStoryMindMap();
+            const position = Cesium.Cartesian3.fromDegrees(
+              story.localStoryLongitude,
+              story.localStoryLatitude,
+              25
+            );
+            const screenPosition = viewer.scene.cartesianToCanvasCoordinates(position);
+            showLocalStoryCard(story, screenPosition, true);
+          });
+          nodesContainer.appendChild(node);
+
+          const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          dot.setAttribute('cx', nodeX);
+          dot.setAttribute('cy', timelineY);
+          dot.setAttribute('r', '10');
+          dot.setAttribute('fill', '#c93232');
+          dot.setAttribute('stroke', '#ffffff');
+          dot.setAttribute('stroke-width', '4');
+          lines.appendChild(dot);
+
+          const connector = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          connector.setAttribute('x1', nodeX);
+          connector.setAttribute('y1', timelineY);
+          connector.setAttribute('x2', nodeX);
+          connector.setAttribute('y2', useTopSide ? 188 : 386);
+          connector.setAttribute('stroke', '#d96f32');
+          connector.setAttribute('stroke-width', '2');
+          connector.setAttribute('stroke-opacity', '0.9');
+          lines.appendChild(connector);
+        });
+
+        requestAnimationFrame(() => {
+          canvas.scrollLeft = 0;
+          canvas.scrollTop = 0;
+        });
+      });
+    }
+
+    function hideLocalStoryMindMap() {
+      document.getElementById('localStoryMindMap').classList.remove('visible');
+      document.getElementById('localStoryMindMapNodes').innerHTML = '';
+    }
+
+    const localStoryStreetViewRadiusMeters = 500;
+    let localStoryMapsApiPromise = null;
+
+    function ensureLocalStoryMapsApi() {
+      if (window.google && window.google.maps && window.google.maps.StreetViewService) {
+        return Promise.resolve();
+      }
+      if (localStoryMapsApiPromise) return localStoryMapsApiPromise;
+
+      if (!window.GOOGLE_MAPS_API_KEY) {
+        return Promise.reject(new Error('Google Maps API key is not configured.'));
+      }
+
+      localStoryMapsApiPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(window.GOOGLE_MAPS_API_KEY)}&v=weekly`;
+        script.async = true;
+        script.onload = () => {
+          if (window.google && window.google.maps && window.google.maps.StreetViewService) {
+            resolve();
+          } else {
+            reject(new Error('Google Maps JavaScript API did not load the Street View service.'));
+          }
+        };
+        script.onerror = () => reject(new Error('Google Maps JavaScript API could not be loaded.'));
+        document.head.appendChild(script);
+      });
+
+      return localStoryMapsApiPromise;
+    }
+
+    function getLocalStoryCoordinates(entity) {
+      const latitude = Number(entity && entity.localStoryLatitude);
+      const longitude = Number(entity && entity.localStoryLongitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+      return { latitude, longitude };
+    }
+
+    function openNearestLocalStoryStreetView(entity, triggerElement) {
+      const coordinates = getLocalStoryCoordinates(entity);
+      if (!coordinates) return;
+
+      const fallbackUrl = `https://www.google.com/maps/@${coordinates.latitude.toFixed(6)},${coordinates.longitude.toFixed(6)},18z`;
+      const openedWindow = window.open('about:blank', '_blank');
+      if (triggerElement) {
+        triggerElement.classList.add('is-loading');
+        triggerElement.textContent = 'Finding imagery...';
+      }
+
+      ensureLocalStoryMapsApi()
+        .then(() => new Promise((resolve) => {
+          const service = new google.maps.StreetViewService();
+          service.getPanorama({
+            location: new google.maps.LatLng(coordinates.latitude, coordinates.longitude),
+            radius: localStoryStreetViewRadiusMeters,
+            preference: google.maps.StreetViewPreference.NEAREST
+          }, (data, status) => {
+            if (status === google.maps.StreetViewStatus.OK && data && data.location) {
+              const panoLocation = data.location.latLng;
+              const latitude = panoLocation.lat();
+              const longitude = panoLocation.lng();
+              const panoId = data.location.pano ? `&pano=${encodeURIComponent(data.location.pano)}` : '';
+              resolve(`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${latitude.toFixed(6)},${longitude.toFixed(6)}${panoId}`);
+            } else {
+              resolve(fallbackUrl);
+            }
+          });
+        }))
+        .catch(() => resolveLocalStoryWindow(openedWindow, fallbackUrl))
+        .then((url) => {
+          if (typeof url === 'string') resolveLocalStoryWindow(openedWindow, url);
+          if (triggerElement) {
+            triggerElement.classList.remove('is-loading');
+            triggerElement.textContent = triggerElement.id === 'localStoryStreetView'
+              ? 'Street View'
+              : '';
+            if (triggerElement.id !== 'localStoryStreetView' && triggerElement.tagName === 'A') {
+              triggerElement.innerHTML = '<strong>Open in Google Street View</strong>';
+            }
+          }
+        });
+    }
+
+    function resolveLocalStoryWindow(openedWindow, url) {
+      if (openedWindow && !openedWindow.closed) {
+        openedWindow.location.href = url;
+        return null;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return null;
+    }
+
+    function showLocalStoryCard(entity, screenPosition, pinCard) {
+      if (!entity || !entity.isLocalStory || !localStoriesDataSource || !localStoriesDataSource.show) return;
+
+      if (pinCard) pinnedLocalStoryEntity = entity;
+      hoveredLocalStoryEntity = entity;
+
+      document.getElementById('localStoryCardTitle').innerHTML =
+        escapeLocalStoryText(entity.localStoryTitle) || 'Local Story';
+      document.getElementById('localStoryCardSummary').innerHTML =
+        escapeLocalStoryText(entity.localStorySummary) || '';
+      document.getElementById('localStoryCardTime').innerHTML =
+        escapeLocalStoryText(entity.localStoryTimePeriod) || 'Not available';
+      document.getElementById('localStoryCardPhenomena').innerHTML =
+        renderLocalStoryPhenomena(entity.localStoryPhenomena) ||
+        '<p>Not available</p>';
+      document.getElementById('localStoryCardGeo').innerHTML =
+        escapeLocalStoryText(entity.localStoryGeoreferencing) || 'Not available';
+      const streetViewUrl = buildLocalStoryStreetViewUrl(entity);
+      const streetViewLink = document.getElementById('localStoryStreetView');
+      if (streetViewUrl) {
+        streetViewLink.href = streetViewUrl;
+        streetViewLink.removeAttribute('aria-disabled');
+      } else {
+        streetViewLink.removeAttribute('href');
+        streetViewLink.setAttribute('aria-disabled', 'true');
+      }
+
+      const card = document.getElementById('localStoryHoverCard');
+      card.classList.add('visible');
+      positionLocalStoryCard(screenPosition);
+    }
+
+    function positionLocalStoryCard(screenPosition) {
+      if (!screenPosition) return;
+      const card = document.getElementById('localStoryHoverCard');
+      if (!card.classList.contains('visible')) return;
+
+      const margin = 12;
+      const popupElevation = 140;
+      const spaceAbove = screenPosition.y - card.offsetHeight - popupElevation;
+      const spaceRight = window.innerWidth - screenPosition.x - card.offsetWidth - 18;
+      const spaceLeft = screenPosition.x - card.offsetWidth - 18;
+      let desiredX;
+      let desiredY;
+
+      card.classList.remove('callout-right', 'callout-left');
+
+      if (spaceAbove >= margin) {
+        desiredX = screenPosition.x - (card.offsetWidth / 2);
+        desiredY = spaceAbove;
+      } else if (spaceRight >= margin) {
+        desiredX = screenPosition.x + 18;
+        desiredY = screenPosition.y - (card.offsetHeight / 2);
+        card.classList.add('callout-right');
+      } else if (spaceLeft >= margin) {
+        desiredX = screenPosition.x - card.offsetWidth - 18;
+        desiredY = screenPosition.y - (card.offsetHeight / 2);
+        card.classList.add('callout-left');
+      } else {
+        desiredX = screenPosition.x - (card.offsetWidth / 2);
+        desiredY = margin;
+      }
+
+      const clampedLeft = Math.min(
+        Math.max(desiredX, margin),
+        window.innerWidth - card.offsetWidth - margin
+      );
+      card.style.left = `${clampedLeft}px`;
+      card.style.top = `${Math.min(
+        Math.max(desiredY, margin),
+        window.innerHeight - card.offsetHeight - margin
+      )}px`;
+      const arrowX = Math.min(
+        Math.max(screenPosition.x - clampedLeft, 18),
+        card.offsetWidth - 18
+      );
+      card.style.setProperty('--callout-arrow-x', `${arrowX}px`);
+    }
+
+    function hideLocalStoryCard() {
+      document.getElementById('localStoryHoverCard').classList.remove('visible');
+      hoveredLocalStoryEntity = null;
+      pinnedLocalStoryEntity = null;
+    }
+
+    document.getElementById('localStoryCardClose').addEventListener('click', hideLocalStoryCard);
+    document.getElementById('localStoryMindMapClose').addEventListener('click', hideLocalStoryMindMap);
+    document.getElementById('localStoryMindMap').addEventListener('click', function(event) {
+      if (event.target === this) hideLocalStoryMindMap();
+    });
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Escape') hideLocalStoryMindMap();
+    });
+    document.getElementById('localStoryLearnMore').addEventListener('click', function() {
+      const entity = pinnedLocalStoryEntity || hoveredLocalStoryEntity;
+      if (!entity) return;
+      openFeaturePopup(entity, 'localStory');
+    });
+    document.getElementById('localStoryStreetView').addEventListener('click', function(event) {
+      const entity = pinnedLocalStoryEntity || hoveredLocalStoryEntity;
+      if (!entity) return;
+      event.preventDefault();
+      openNearestLocalStoryStreetView(entity, this);
+    });
+
+    document.addEventListener('click', function(event) {
+      const link = event.target.closest('.local-story-street-view-link');
+      if (!link) return;
+      event.preventDefault();
+      const entity = {
+        localStoryLatitude: Number(link.dataset.latitude),
+        localStoryLongitude: Number(link.dataset.longitude)
+      };
+      openNearestLocalStoryStreetView(entity, link);
+    });
+
+    function openFeaturePopup(feature, featureType) {
+      let title = '';
+      let content = '';
+
+      try {
+        if (featureType === 'localStory') {
+          title = normalizeLocalStoryText(feature.localStoryTitle) || 'Local Story';
+          content = `
+            <p><strong>Summary:</strong> ${escapeLocalStoryText(feature.localStorySummary)}</p>
+            <p><strong>Time Period:</strong> ${escapeLocalStoryText(feature.localStoryTimePeriod)}</p>
+            <p><strong>Phenomena:</strong></p>
+            ${renderLocalStoryPhenomena(feature.localStoryPhenomena) || '<p>Not available</p>'}
+            <p><strong>Georeferencing:</strong> ${escapeLocalStoryText(feature.localStoryGeoreferencing)}</p>
+          `;
+          const streetViewUrl = buildLocalStoryStreetViewUrl(feature);
+          if (streetViewUrl) {
+            const streetViewLatitude = Number(feature.localStoryLatitude);
+            const streetViewLongitude = Number(feature.localStoryLongitude);
+            content += `<p><a href="${streetViewUrl}" class="local-story-street-view-link" data-latitude="${streetViewLatitude}" data-longitude="${streetViewLongitude}" target="_blank" rel="noopener noreferrer" style="color: #d96f32; font-weight: 700;"><strong>Open in Google Street View</strong></a></p>`;
+          }
+        } else if (featureType === 'hotspot') {
+          // Hotspots popup - show name, type, theme, time period, height, link
+          title = feature.hotspotName || 'Hotspot';
+          const name = feature.properties.name ? feature.properties.name.getValue() : '';
+          const type = feature.properties.type ? feature.properties.type.getValue() : '';
+          const theme = feature.properties.theme ? feature.properties.theme.getValue() : '';
+          const timePeriod = feature.properties.time_period ? feature.properties.time_period.getValue() : '';
+          const height = feature.properties.extru_ele_m ? feature.properties.extru_ele_m.getValue() : '';
+          const link = feature.properties.link ? feature.properties.link.getValue() : '';
+          
+          content = `
+            <p><strong>Type:</strong> ${type}</p>
+            <p><strong>Theme:</strong> ${theme}</p>
+            <p><strong>Time Period:</strong> ${timePeriod}</p>
+            <p><strong>Height:</strong> ${height} m</p>
+            ${link ? `<p><a href="${link}" target="_blank" style="color: #4fc3f7; text-decoration: underline;">View Content</a></p>` : ''}
+          `;
+        } else if (featureType === 'neighborhood') {
+          // Neighborhoods popup - show neighborhood name and area in acres
+          title = feature.neighborhoodName || 'Neighborhood';
+          
+          // Get area from properties - try different property names
+          let shapeAreaMeters = 0;
+          if (feature.properties) {
+            // Try accessing through the properties object
+            if (feature.properties.Shape_Area && feature.properties.Shape_Area.getValue) {
+              shapeAreaMeters = parseFloat(feature.properties.Shape_Area.getValue());
+            } else if (feature.properties.Shape__Are && feature.properties.Shape__Are.getValue) {
+              shapeAreaMeters = parseFloat(feature.properties.Shape__Are.getValue());
+            }
+          }
+          
+          const shapeAreaAcres = (shapeAreaMeters / 4046.86).toFixed(2);
+          
+          content = `
+            ${shapeAreaAcres > 0 ? `<p><strong>Area:</strong> ${shapeAreaAcres} acres</p>` : '<p>Area: not available</p>'}
+          `;
+        } else if (featureType === 'redlining') {
+          // Redlining popup - show grade, category, location, zoning details
+          const grade = feature.gradeValue;
+          const gradeNames = {
+            'A': 'Best',
+            'B': 'Still Desirable',
+            'C': 'Declining',
+            'D': 'Hazardous',
+            'Other': 'Commercial/Industrial'
+          };
+          title = `HOLC Grade: ${grade}`;
+
+          // Read raw properties (some are stored as underscored fields)
+          const category = (feature._category && feature._category !== '') ? feature._category : (feature.properties && feature.properties.category && feature.properties.category.getValue ? feature.properties.category.getValue() : '');
+          const city = (feature._city && feature._city !== '') ? feature._city : (feature.properties && feature.properties.city && feature.properties.city.getValue ? feature.properties.city.getValue() : '');
+          const state = (feature._state && feature._state !== '') ? feature._state : (feature.properties && feature.properties.state && feature.properties.state.getValue ? feature.properties.state.getValue() : '');
+          const label = (feature._label && feature._label !== '') ? feature._label : (feature.properties && feature.properties.label && feature.properties.label.getValue ? feature.properties.label.getValue() : '');
+
+          // Booleans: some fields may be true/false or missing
+          const residentialFlag = (feature._residentia !== undefined) ? feature._residentia : (feature.properties && feature.properties.residentia && feature.properties.residentia.getValue ? feature.properties.residentia.getValue() : null);
+          const commercialFlag = (feature._commercial !== undefined) ? feature._commercial : (feature.properties && feature.properties.commercial && feature.properties.commercial.getValue ? feature.properties.commercial.getValue() : null);
+          const industrialFlag = (feature._industrial !== undefined) ? feature._industrial : (feature.properties && feature.properties.industrial && feature.properties.industrial.getValue ? feature.properties.industrial.getValue() : null);
+
+          const categoryDisplay = category && category !== '' ? category : 'Not available';
+          const locationDisplay = (city || state) ? `${city || ''}${city && state ? ', ' : ''}${state || ''}` : 'Not available';
+          const labelDisplay = label && label !== '' ? label : 'Not available';
+          const residential = residentialFlag ? 'Yes' : 'No';
+          const commercial = commercialFlag ? 'Yes' : 'No';
+          const industrial = industrialFlag ? 'Yes' : 'No';
+
+          content = `
+            <p><strong>Category:</strong> ${categoryDisplay}</p>
+            <p><strong>Location:</strong> ${locationDisplay}</p>
+            <p><strong>Label:</strong> ${labelDisplay}</p>
+            <p><strong>Residential:</strong> ${residential}</p>
+            <p><strong>Commercial:</strong> ${commercial}</p>
+            <p><strong>Industrial:</strong> ${industrial}</p>
+          `;
+        }
+
+        // Parcels popup - show requested taxlist fields
+        else if (featureType === 'parcel') {
+          // Title: Type
+          const typeVal = (feature.properties && feature.properties.type && feature.properties.type.getValue) ? feature.properties.type.getValue() : (feature.parcelTypeKey || 'Parcel');
+          title = typeVal || 'Parcel';
+
+          const propClass = (feature.properties && feature.properties.PROP_CLASS && feature.properties.PROP_CLASS.getValue) ? feature.properties.PROP_CLASS.getValue() : '';
+          const dwell = (feature.properties && feature.properties.DWELL && feature.properties.DWELL.getValue) ? feature.properties.DWELL.getValue() : '';
+          const address = (feature.properties && feature.properties.PROP_LOC && feature.properties.PROP_LOC.getValue) ? feature.properties.PROP_LOC.getValue() : '';
+          const landValRaw = (feature.properties && feature.properties.LAND_VAL && feature.properties.LAND_VAL.getValue) ? feature.properties.LAND_VAL.getValue() : '';
+          let landVal = 'N/A';
+          if (landValRaw !== '' && landValRaw !== null && typeof landValRaw !== 'undefined') {
+            const n = Number(landValRaw);
+            landVal = (!isNaN(n)) ? ('$' + n.toLocaleString()) : String(landValRaw);
+          }
+          const area = (feature.properties && feature.properties.CALC_ACRE && feature.properties.CALC_ACRE.getValue) ? feature.properties.CALC_ACRE.getValue() : '';
+          const yr = (feature.properties && feature.properties.YR_CONSTR && feature.properties.YR_CONSTR.getValue) ? feature.properties.YR_CONSTR.getValue() : '';
+
+          content = `
+            <p><strong>Property class:</strong> ${propClass || 'N/A'}</p>
+            <p><strong>Dwell:</strong> ${dwell || 'N/A'}</p>
+            <p><strong>Address:</strong> ${address || 'N/A'}</p>
+            <p><strong>Land Value:</strong> ${landVal}</p>
+            <p><strong>Area (acres):</strong> ${area || 'N/A'}</p>
+            <p><strong>Year of Construction:</strong> ${yr || 'N/A'}</p>
+          `;
+        } else if (featureType === 'censusTract') {
+          // Census tract popup - show GEOID10 and available properties
+          title = feature.tractId || 'Census Tract';
+          
+          // Get available properties
+          const geoid10 = feature.properties.GEOID10 ? feature.properties.GEOID10.getValue() : '';
+          const aland = feature.properties.ALAND ? feature.properties.ALAND.getValue() : '';
+          const awater = feature.properties.AWATER ? feature.properties.AWATER.getValue() : '';
+          const url = feature.properties.URL ? feature.properties.URL.getValue() : '';
+          
+          // Convert area to square miles if available
+          let alandDisplay = '';
+          if (aland) {
+            const sqMiles = (parseFloat(aland) / 2589988.11).toFixed(2);
+            alandDisplay = `${sqMiles} sq mi`;
+          }
+          
+          content = `
+            <p><strong>GEOID:</strong> ${geoid10}</p>
+            ${alandDisplay ? `<p><strong>Land Area:</strong> ${alandDisplay}</p>` : ''}
+            ${awater ? `<p><strong>Water Area:</strong> ${awater} m²</p>` : ''}
+            ${url ? `<p><a href="${url}" target="_blank" style="color: #0066cc; text-decoration: none;"><strong>Google Street View</strong></a></p>` : ''}
+          `;
+        }
+
+        // Update popup content
+        document.getElementById('popupTitle').textContent = title;
+        document.getElementById('popupContent').innerHTML = content;
+        document.getElementById('featurePopup').classList.add('visible');
+
+        // Store current feature type for closing
+        document.getElementById('featurePopup').dataset.featureType = featureType;
+      } catch (error) {
+        console.error('Error opening feature popup:', error);
+        console.log('Feature object:', feature);
+      }
+    }
+
+    /**
+     * Close feature popup and deselect feature
+     */
+    function closeFeaturePopup() {
+      const popup = document.getElementById('featurePopup');
+      popup.classList.remove('visible');
+      
+      const featureType = popup.dataset.featureType;
+      if (featureType === 'neighborhood') {
+        clearNeighborhoodSelection();
+      } else if (featureType === 'redlining') {
+        clearRedliningSelection();
+      }
+      // For hotspots, no selection state to clear yet
+    }
+
+    // Close popup button click handler
+    document.getElementById('closePopupBtn').addEventListener('click', closeFeaturePopup);
+
+    /**
+     * Isolate a selected neighborhood by darkening unselected ones
+     */
+    function getNeighborhoodFillColor(name) {
+      const normalizedName = String(name || '').trim().toLowerCase();
+      if (normalizedName === 'north omaha') {
+        return Cesium.Color.fromCssColorString('#4f86a8').withAlpha(0.55);
+      }
+      if (normalizedName === 'south omaha') {
+        return Cesium.Color.fromCssColorString('#d99045').withAlpha(0.55);
+      }
+      return Cesium.Color.fromCssColorString('#7d9b62').withAlpha(0.55);
+    }
+
+    function isolateNeighborhood(neighborhood) {
+      selectedNeighborhood = neighborhood;
+      
+      if (neighborhoodsDataSource) {
+        neighborhoodsDataSource.entities.values.forEach(entity => {
+          if (entity === neighborhood) {
+            entity.polygon.material = getNeighborhoodFillColor(entity.neighborhoodName).withAlpha(0.75);
+          } else {
+            // Unselected neighborhoods: darkened
+            entity.polygon.material = Cesium.Color.fromCssColorString('#000000').withAlpha(0.55);
+          }
+        });
+      }
+    }
+
+    /**
+     * Clear neighborhood selection and restore original styling
+     */
+    function clearNeighborhoodSelection() {
+      if (neighborhoodsDataSource) {
+        neighborhoodsDataSource.entities.values.forEach(entity => {
+          if (entity.isNeighborhood) {
+            // Restore original styling
+            entity.polygon.material = getNeighborhoodFillColor(entity.neighborhoodName);
+          }
+        });
+      }
+      selectedNeighborhood = null;
+    }
+
+    /**
+     * Isolate a selected redlining feature by darkening unselected ones
+     */
+    function isolateFeature(feature) {
+      selectedFeature = feature;
+      
+      // Dim all redlining entities except the selected one
+      if (redliningDataSource) {
+        redliningDataSource.entities.values.forEach(entity => {
+          if (entity === feature) {
+            entity.show = true;
+            // Keep original color for selected feature
+          } else {
+            // Dim non-selected features with dark gray transparent material
+            entity.polygon.material = Cesium.Color.fromCssColorString('#000000').withAlpha(0.8);
+            entity.polygon.outlineColor = Cesium.Color.fromCssColorString('#222222').withAlpha(0.5);
+            entity.show = true;
+          }
+        });
+      }
+    }
+
+    /**
+     * Clear redlining selection and restore original styling
+     */
+    function clearRedliningSelection() {
+      if (redliningDataSource) {
+        redliningDataSource.entities.values.forEach(entity => {
+          if (Cesium.defined(entity.gradeValue)) {
+            // Restore original grade color
+            const grade = entity.gradeValue;
+            const color = gradeColors[grade] || Cesium.Color.GRAY.withAlpha(0.4);
+            entity.polygon.material = color;
+            entity.polygon.outlineColor = color.withAlpha(0.8);
+          }
+        });
+      }
+      selectedFeature = null;
+    }
+
+    /**
+     * Compute a bounding sphere for an entity (polygons or points) to allow
+     * camera.flyToBoundingSphere to focus tightly on selected features.
+     */
+    function getBoundingSphereForEntity(entity) {
+      try {
+        // Polygon hierarchy (GeoJSON polygons)
+        if (entity.polygon && entity.polygon.hierarchy) {
+          const jd = Cesium.JulianDate.now();
+          const hierarchyValue = (typeof entity.polygon.hierarchy.getValue === 'function') ? entity.polygon.hierarchy.getValue(jd) : entity.polygon.hierarchy;
+          const positions = hierarchyValue && hierarchyValue.positions ? hierarchyValue.positions : hierarchyValue;
+          if (positions && positions.length) {
+            return Cesium.BoundingSphere.fromPoints(positions);
+          }
+        }
+
+
+        // Point-like entity
+        if (entity.position) {
+          const jd = Cesium.JulianDate.now();
+          const pos = (typeof entity.position.getValue === 'function') ? entity.position.getValue(jd) : entity.position;
+          if (pos) {
+            return new Cesium.BoundingSphere(pos, 50.0);
+          }
+        }
+      } catch (e) {
+        console.warn('Error computing bounding sphere:', e);
+      }
+      return null;
+    }
+
+    /**
+     * Fly the camera to an entity using a bounding-sphere-based offset when possible.
+     * Falls back to viewer.flyTo if necessary.
+     */
+    function flyToEntity(entity, options) {
+      options = options || {};
+      const duration = (typeof options.duration !== 'undefined') ? options.duration : 1.2;
+      const pitch = (typeof options.pitch !== 'undefined') ? options.pitch : Cesium.Math.toRadians(-30);
+      const heading = (typeof options.heading !== 'undefined') ? options.heading : Cesium.Math.toRadians(0);
+
+      const bs = getBoundingSphereForEntity(entity);
+      if (bs) {
+        // Use a multiplier so the feature is comfortably framed
+        const minRange = (typeof options.minRange !== 'undefined') ? options.minRange : 400;
+        const range = Math.max(bs.radius * 2.5, minRange);
+        try {
+          viewer.camera.flyToBoundingSphere(bs, {
+            duration: duration,
+            offset: new Cesium.HeadingPitchRange(heading, pitch, range)
+          });
+          return;
+        } catch (e) {
+          console.warn('flyToBoundingSphere failed, falling back to viewer.flyTo:', e);
+        }
+      }
+
+      // Fallback
+      try {
+        viewer.flyTo(entity, {
+          duration: duration,
+          offset: new Cesium.HeadingPitchRange(heading, pitch, options.fallbackRange || 800)
+        });
+      } catch (e) {
+        console.warn('Fallback flyTo failed:', e);
+      }
+    }
+
+    /**
+     * Start auto-rotating the camera around an entity. Rotation continues
+     * until `stopAutoRotate()` is called (for example, by another click or closing popup).
+     * Options: { speed: radiansPerSec }
+     */
+    function startAutoRotate(entity, options) {
+      if (!viewer || !entity) return;
+      options = options || {};
+      const speed = (typeof options.speed === 'number') ? options.speed : 0.25; // radians/sec
+
+      // Ensure any existing rotation is stopped
+      stopAutoRotate();
+
+      // Compute bounding sphere and transform for local ENU frame
+      const bs = getBoundingSphereForEntity(entity);
+      if (!bs) return;
+      const center = bs.center;
+      const range = Math.max(bs.radius * 2.2, options.minRange || 200);
+      const transform = Cesium.Transforms.eastNorthUpToFixedFrame(center);
+
+      // Base offset in local ENU coordinates: (x, y, z)
+      const baseOffset = new Cesium.Cartesian3(range, 0.0, range * 0.25);
+
+      let angle = 0.0;
+      let lastTime = performance.now();
+
+      rotationListener = function(scene, time) {
+        const now = performance.now();
+        const dt = (now - lastTime) / 1000.0;
+        lastTime = now;
+        angle += dt * speed;
+
+        const c = Math.cos(angle);
+        const s = Math.sin(angle);
+        const rotated = new Cesium.Cartesian3(
+          baseOffset.x * c - baseOffset.y * s,
+          baseOffset.x * s + baseOffset.y * c,
+          baseOffset.z
+        );
+
+        // Use lookAtTransform so the offset is interpreted in the ENU frame at the center
+        try {
+          viewer.camera.lookAtTransform(transform, rotated);
+        } catch (e) {
+          console.warn('Auto-rotate camera update failed:', e);
+        }
+      };
+
+      viewer.scene.preRender.addEventListener(rotationListener);
+      rotationActive = true;
+    }
+
+    /**
+     * Stop any active auto-rotation and restore the camera control to the user.
+     */
+    function stopAutoRotate() {
+      if (!viewer) return;
+      if (rotationTimeout) {
+        clearTimeout(rotationTimeout);
+        rotationTimeout = null;
+      }
+      if (rotationListener) {
+        try {
+          viewer.scene.preRender.removeEventListener(rotationListener);
+        } catch (e) {
+          // ignore
+        }
+        rotationListener = null;
+      }
+      if (rotationActive) {
+        try {
+          viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+        } catch (e) {
+          // ignore
+        }
+      }
+      rotationActive = false;
+    }
+
+    /**
+     * Reset the camera to the default Omaha overview and clear any selection/rotation.
+     */
+    function resetView() {
+      // Stop rotation and close popup/clear selections
+      stopAutoRotate();
+      closeFeaturePopup();
+      clearNeighborhoodSelection();
+      clearRedliningSelection();
+
+      // Fly camera back to the initial overview position
+      try {
+        viewer.camera.flyTo({
+          ...getDefaultCameraView(),
+          duration: 1.6
+        });
+      } catch (e) {
+        console.warn('Reset view flyTo failed:', e);
+      }
+    }
+
+    // Reset view button handler
+    document.getElementById('resetViewBtn').addEventListener('click', resetView);
+  </script>
+  </body>
+</html>
