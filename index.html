@@ -2301,10 +2301,14 @@
         .replace(/\r\n?/g, '\n')
         .replace(/\uFFFD([^�\n]*?)\uFFFD/g, '“$1”')
         .replace(/(\d)\uFFFD(?=\d)/g, '$1–')
+        .replace(/(\d|\bCENTURY)\uFFFD(?=[A-Za-z])/g, '$1 - ')
         .replace(/([A-Za-z])\uFFFD(?=\d)/g, '$1–')
         .replace(/([A-Za-z])\uFFFD(?=[A-Za-z])/g, '$1 ')
         .replace(/^\s*\uFFFD\s*/gm, '')
-        .replace(/\uFFFD/g, '');
+        .replace(/\uFFFD/g, '')
+        .replace(/(\d{4}s?|\d{1,4}s?)\s*PRESENT\b/gi, '$1 - PRESENT')
+        .replace(/([A-Z]+\s+\d{4}|\d{1,2},?\s+\d{4})\s*PRESENT\b/gi, '$1 - PRESENT')
+        .replace(/\b(LATE\s+TWENTIETH\s+CENTURY|CENTURY)\s*PRESENT\b/gi, '$1 - PRESENT');
     }
 
     function renderLocalStoryPhenomena(value) {
