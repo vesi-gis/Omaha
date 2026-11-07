@@ -161,6 +161,37 @@
       opacity: 0;
     }
 
+    .layer-group-title {
+      margin: 12px 0 4px;
+      color: #4fc3f7;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .layer-group-title:first-of-type {
+      margin-top: 0;
+    }
+
+    .layer-info {
+      margin: 0 0 6px 26px;
+      color: #bbbbbb;
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+
+    .layer-info summary {
+      width: fit-content;
+      color: #4fc3f7;
+      font-size: 12.5px;
+      cursor: pointer;
+    }
+
+    .layer-info[open] summary {
+      margin-bottom: 5px;
+    }
+
     #featurePopup {
       position: fixed;
       top: 0;
@@ -602,11 +633,121 @@
       background: rgba(64,64,64,0.95);
       color: #4fc3f7;
     }
+
+    #welcomeOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      box-sizing: border-box;
+      background: rgba(0, 0, 0, 0.72);
+      font-family: 'Karla', sans-serif;
+    }
+
+    #welcomeOverlay.visible {
+      display: flex;
+    }
+
+    #welcomeOverlay .welcome-box {
+      width: min(460px, calc(100vw - 32px));
+      box-sizing: border-box;
+      padding: 24px;
+      border-radius: 12px;
+      background: #ffffff;
+      color: #222222;
+      line-height: 1.5;
+      font-size: 15px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.48);
+    }
+
+    #welcomeOverlay h2 {
+      margin: 0 0 8px;
+      font-size: 21px;
+    }
+
+    #welcomeOverlay ul {
+      margin: 12px 0;
+      padding-left: 20px;
+    }
+
+    #welcomeOverlay li {
+      margin: 4px 0;
+    }
+
+    #welcomeCloseBtn {
+      border: 0;
+      border-radius: 4px;
+      padding: 11px 16px;
+      background: #c93232;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    #welcomeCloseBtn:hover {
+      background: #a92727;
+    }
+
+    .welcome-help-btn {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 21;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 9px 12px;
+      background: rgba(40, 40, 40, 0.92);
+      color: #ffffff;
+      font-family: 'Karla', sans-serif;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .welcome-help-btn:hover {
+      color: #4fc3f7;
+    }
+
+    @media (max-width: 700px) {
+      #featurePopup {
+        top: auto;
+        bottom: 0;
+        width: 100%;
+        height: 60vh;
+        max-width: 100%;
+        border-left: 0;
+        border-radius: 12px 12px 0 0;
+        transform: translateY(100%);
+        box-sizing: border-box;
+      }
+
+      #featurePopup.visible {
+        transform: translateY(0);
+      }
+    }
   </style>
 </head>
 
 <body>
   <div id="cesiumContainer"></div>
+
+  <div id="welcomeOverlay" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+    <div class="welcome-box">
+      <h2 id="welcomeTitle">Welcome to the Omaha History Explorer</h2>
+      <p>Explore the history of Omaha's neighborhoods on a 3D map.</p>
+      <ul>
+        <li><b>Read a story:</b> click an orange point, or choose a story from the Local Stories list.</li>
+        <li><b>Move:</b> drag to pan, scroll or pinch to zoom.</li>
+        <li><b>Tilt and rotate:</b> right-drag, or use two fingers on touch screens.</li>
+        <li><b>Add maps:</b> use the checkboxes in the Layers panel.</li>
+        <li><b>Lost?</b> Press "Reset View".</li>
+      </ul>
+      <button id="welcomeCloseBtn">Start exploring</button>
+    </div>
+  </div>
 
   <div id="localStoryMindMap" role="dialog" aria-modal="true" aria-label="Stories at this location">
     <div class="local-story-mindmap-shell">
@@ -620,7 +761,7 @@
     </div>
   </div>
 
-  <div id="featurePopup">
+  <div id="featurePopup" role="dialog" aria-modal="false" aria-labelledby="popupTitle">
     <div class="popup-header">
       <div class="popup-title" id="popupTitle">Feature Details</div>
       <button class="close-btn" id="closePopupBtn">×</button>
@@ -648,74 +789,86 @@
 
   <div id="sidePanel">
     <div class="section-title">📍 Layers</div>
-    
-    <div class="group-header" id="boundariesToggle">
-      <span>🗺️ Boundaries</span>
-      <span class="toggle-arrow">▼</span>
-    </div>
-    <div class="group-content" id="boundariesContent">
-      <label class="layer-toggle">
-        <input type="checkbox" id="toggleLocalStories">
-        📖 Local Stories
+
+    <div class="layer-group-title">📖 Stories</div>
+    <label class="layer-toggle">
+      <input type="checkbox" id="toggleLocalStories" checked>
+      Local Stories
+    </label>
+    <details class="layer-info">
+      <summary>ⓘ What is this?</summary>
+      Georeferenced local histories showing places, historical events, property decisions, and neighborhood change across Omaha. Click a point to read its story.
+    </details>
+
+    <div class="layer-group-title">🗺️ Historical maps</div>
+    <label class="layer-toggle">
+      <input type="checkbox" id="toggleRedlining">
+      1930s HOLC Redlining
+    </label>
+    <details class="layer-info">
+      <summary>ⓘ What is this?</summary>
+      The Home Owners' Loan Corporation graded neighborhoods during the 1930s for perceived lending risk. The grades often followed racial and ethnic lines and influenced access to home loans. Click an area for details.
+    </details>
+    <div id="gradesContainer" style="margin-left: 8px;">
+      <label class="grade-toggle">
+        <div class="color-swatch" style="background-color: #76a865;"></div>
+        <input type="checkbox" id="toggleGradeA" checked data-grade="A">
+        <span>A: Best</span>
       </label>
-      <label class="layer-toggle">
-        <input type="checkbox" id="toggleNeighborhoods">
-        🏘️ Neighborhoods
+      <label class="grade-toggle">
+        <div class="color-swatch" style="background-color: #7cb5bd;"></div>
+        <input type="checkbox" id="toggleGradeB" checked data-grade="B">
+        <span>B: Still Desirable</span>
       </label>
-      <label class="layer-toggle">
-        <input type="checkbox" id="toggleRedlining">
-        🗺️ HOLC Redlining
+      <label class="grade-toggle">
+        <div class="color-swatch" style="background-color: #ffff00;"></div>
+        <input type="checkbox" id="toggleGradeC" checked data-grade="C">
+        <span>C: Declining</span>
       </label>
-      <div id="gradesContainer" style="margin-left: 8px;">
-        <label class="grade-toggle">
-          <div class="color-swatch" style="background-color: #76a865;"></div>
-          <input type="checkbox" id="toggleGradeA" checked data-grade="A">
-          <span>A: Best</span>
-        </label>
-        <label class="grade-toggle">
-          <div class="color-swatch" style="background-color: #7cb5bd;"></div>
-          <input type="checkbox" id="toggleGradeB" checked data-grade="B">
-          <span>B: Still Desirable</span>
-        </label>
-        <label class="grade-toggle">
-          <div class="color-swatch" style="background-color: #ffff00;"></div>
-          <input type="checkbox" id="toggleGradeC" checked data-grade="C">
-          <span>C: Declining</span>
-        </label>
-        <label class="grade-toggle">
-          <div class="color-swatch" style="background-color: #d9838d;"></div>
-          <input type="checkbox" id="toggleGradeD" checked data-grade="D">
-          <span>D: Hazardous</span>
-        </label>
-        <label class="grade-toggle">
-          <div class="color-swatch" style="background-color: #808080;"></div>
-          <input type="checkbox" id="toggleGradeOther" data-grade="Other">
-          <span>Other: Commercial/Industrial</span>
-        </label>
-      </div>
-    </div>
-    
-    <div class="group-header" id="administrationToggle">
-      <span>🗺️ Administration Boundaries</span>
-      <span class="toggle-arrow">▼</span>
-    </div>
-    <div class="group-content" id="administrationContent">
-      <label class="layer-toggle">
-        <input type="checkbox" id="toggleIowaCounties">
-        Iowa Counties
+      <label class="grade-toggle">
+        <div class="color-swatch" style="background-color: #d9838d;"></div>
+        <input type="checkbox" id="toggleGradeD" checked data-grade="D">
+        <span>D: Hazardous</span>
       </label>
-      <label class="layer-toggle">
-        <input type="checkbox" id="toggleNebraskaCounties">
-        Nebraska Counties
+      <label class="grade-toggle">
+        <div class="color-swatch" style="background-color: #808080;"></div>
+        <input type="checkbox" id="toggleGradeOther" data-grade="Other">
+        <span>Other: Commercial/Industrial</span>
       </label>
     </div>
 
+    <div class="layer-group-title">🏘️ Neighborhoods</div>
+    <label class="layer-toggle">
+      <input type="checkbox" id="toggleNeighborhoods">
+      Neighborhood Areas
+    </label>
+    <details class="layer-info">
+      <summary>ⓘ What is this?</summary>
+      Omaha neighborhood boundaries. Click a neighborhood to see its details and zoom to the area.
+    </details>
+
+    <div class="layer-group-title">🧭 Regions</div>
+    <label class="layer-toggle">
+      <input type="checkbox" id="toggleIowaCounties">
+      Iowa Counties
+    </label>
+    <label class="layer-toggle">
+      <input type="checkbox" id="toggleNebraskaCounties">
+      Nebraska Counties
+    </label>
+
+    <div class="layer-group-title">🏢 Base map</div>
     <label class="layer-toggle">
       <input type="checkbox" id="toggleGoogle3D" checked>
-      🏢 Google 3D Tiles
+      3D Buildings (Google)
     </label>
+    <details class="layer-info">
+      <summary>ⓘ What is this?</summary>
+      Google Photorealistic 3D Tiles provide current 3D building and terrain context for the map.
+    </details>
   </div>
 
+  <button id="welcomeHelpBtn" class="welcome-help-btn" title="Show welcome guide">ⓘ Help</button>
   <button id="resetViewBtn" title="Reset camera view">⟲ Reset View</button>
 
   <script>
@@ -1166,7 +1319,7 @@
             });
 
             console.info(`Local Stories loaded: ${loadedLocalStoryCount} of ${rows.length} CSV records`);
-            localStoriesDataSource.show = false;
+            localStoriesDataSource.show = true;
           })
           .catch(error => {
             console.error('Error loading Local Stories layer:', error);
@@ -2480,7 +2633,12 @@
       if (event.target === this) hideLocalStoryMindMap();
     });
     document.addEventListener('keydown', function(event) {
-      if (event.key === 'Escape') hideLocalStoryMindMap();
+      if (event.key !== 'Escape') return;
+      if (document.getElementById('welcomeOverlay').classList.contains('visible')) {
+        hideWelcomeOverlay();
+      } else {
+        hideLocalStoryMindMap();
+      }
     });
     document.getElementById('localStoryLearnMore').addEventListener('click', function() {
       const entity = pinnedLocalStoryEntity || hoveredLocalStoryEntity;
@@ -2684,6 +2842,27 @@
 
     // Close popup button click handler
     document.getElementById('closePopupBtn').addEventListener('click', closeFeaturePopup);
+
+    const welcomeOverlay = document.getElementById('welcomeOverlay');
+    const welcomeCloseBtn = document.getElementById('welcomeCloseBtn');
+
+    function showWelcomeOverlay() {
+      welcomeOverlay.classList.add('visible');
+      welcomeCloseBtn.focus();
+    }
+
+    function hideWelcomeOverlay() {
+      welcomeOverlay.classList.remove('visible');
+      try {
+        localStorage.setItem('omahaWelcomeSeen', '1');
+      } catch (error) {
+        console.warn('Could not save welcome preference:', error);
+      }
+    }
+
+    welcomeCloseBtn.addEventListener('click', hideWelcomeOverlay);
+    document.getElementById('welcomeHelpBtn').addEventListener('click', showWelcomeOverlay);
+    showWelcomeOverlay();
 
     /**
      * Isolate a selected neighborhood by darkening unselected ones
