@@ -2367,7 +2367,12 @@
             String(a.localStoryTitle || '').localeCompare(String(b.localStoryTitle || ''));
         });
 
-        const canvasWidth = Math.max(1200, sortedStories.length * 280 + 200);
+        const timelineStepX = 280;
+        const timelineStartX = 140;
+        const canvasWidth = Math.max(
+          1200,
+          timelineStartX * 2 + (sortedStories.length - 1) * timelineStepX + 230
+        );
         const canvasHeight = 620;
         nodesContainer.style.width = `${canvasWidth}px`;
         nodesContainer.style.height = `${canvasHeight}px`;
@@ -2379,8 +2384,8 @@
         while (lines.firstChild) lines.removeChild(lines.firstChild);
 
         const timelineY = 310;
-        const stepX = 280;
-        const startX = 100;
+        const stepX = timelineStepX;
+        const startX = timelineStartX;
 
         const timelineLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         timelineLine.setAttribute('x1', startX);
